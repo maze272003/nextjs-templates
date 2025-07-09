@@ -1,9 +1,8 @@
-// src/app/profile/page.tsx
-'use client'; 
+'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link'; // <-- 1. IMPORT LINK
+import Link from 'next/link';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -17,40 +16,48 @@ export default function ProfilePage() {
   const [isError, setIsError] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // **BAGONG LOGIC: Kunin ang profile para sa current user**
   useEffect(() => {
-    const demoUserId = '1'; 
-    setUserId(demoUserId);
-  }, []);
-
-  useEffect(() => {
-    if (userId) {
-      const fetchProfile = async () => {
-        try {
-          const response = await fetch(`/api/profile?userId=${userId}`);
-          const data = await response.json();
-
-          if (response.ok) {
-            setFirstName(data.first_name || '');
-            setLastName(data.last_name || '');
-            setBio(data.bio || '');
-            setProfilePictureUrl(data.profile_picture_url || null);
-          } else {
-            setMessage(data.message || 'Failed to load profile.');
-            setIsError(true);
-          }
-        } catch (error) {
-          console.error('Error fetching profile:', error);
-          setMessage('An error occurred while loading profile.');
-          setIsError(true);
-        } finally {
-          setLoading(false);
+    const getProfileForCurrentUser = async () => {
+      try {
+        // Step 1: I-check kung sino ang naka-login
+        const sessionResponse = await fetch('/api/auth/check-session');
+        if (!sessionResponse.ok) {
+          throw new Error('User not authenticated. Redirecting to login.');
         }
-      };
-      fetchProfile();
-    } else {
-      setLoading(false);
-    }
-  }, [userId]);
+
+        const sessionData = await sessionResponse.json();
+        const currentUserId = sessionData.userId;
+
+        if (!currentUserId) {
+          throw new Error('Could not retrieve user ID from session.');
+        }
+        
+        // I-set ang user ID sa state para magamit sa pag-update mamaya
+        setUserId(currentUserId);
+
+        // Step 2: I-fetch ang profile gamit ang nakuha nating ID
+        const profileResponse = await fetch(`/api/profile?userId=${currentUserId}`);
+        if (profileResponse.ok) {
+          const data = await profileResponse.json();
+          setFirstName(data.first_name || '');
+          setLastName(data.last_name || '');
+          setBio(data.bio || '');
+          setProfilePictureUrl(data.profile_picture_url || null);
+        } else {
+          // Normal lang na 404 kung wala pang profile ang user
+          console.log(`No profile data found for user ${currentUserId}.`);
+        }
+      } catch (error: any) {
+        console.error('Profile page fetch error:', error.message);
+        router.push('/login'); // Kung may problema, pabalikin sa login
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    getProfileForCurrentUser();
+  }, [router]); // Ang dependency array ay [router] para tumakbo ito isang beses
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,6 +78,7 @@ export default function ProfilePage() {
     }
 
     try {
+      // Gagamitin ng 'PUT' request ang userId na nasa state
       const response = await fetch(`/api/profile?userId=${userId}`, {
         method: 'PUT',
         body: formData,
@@ -97,26 +105,12 @@ export default function ProfilePage() {
   };
   
   const handleLogout = async () => {
-    setMessage('Logging out...');
+    // ... (logout logic is the same)
     try {
-      const response = await fetch('/api/auth/logout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      const data = await response.json();
-      if (response.ok) {
-        setMessage(data.message || 'You have been logged out.');
-        setTimeout(() => {
-          router.push('/login');
-        }, 500);
-      } else {
-        setMessage(data.message || 'Logout failed.');
-      }
+      await fetch('/api/auth/logout', { method: 'POST' });
+      router.push('/login');
     } catch (error) {
-      console.error('Client-side logout error:', error);
-      setMessage('An unexpected error occurred during logout.');
+      console.error('Logout failed', error);
     }
   };
 
@@ -128,6 +122,7 @@ export default function ProfilePage() {
     );
   }
 
+  // Ang JSX part ay pareho pa rin, hindi na kailangan baguhin
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
       <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-2xl">
@@ -150,6 +145,7 @@ export default function ProfilePage() {
         )}
 
         <form onSubmit={handleSubmit} id="profile-form" className="space-y-6">
+          {/* ... form inputs ... */}
           <div>
             <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">First Name:</label>
             <input
@@ -183,26 +179,22 @@ export default function ProfilePage() {
           </div>
         </form>
 
-        {/* --- 2. ACTION BUTTONS GROUPED TOGETHER --- */}
         <div className="mt-6 flex flex-col sm:flex-row gap-4">
             <button
               type="submit"
-              form="profile-form" // Submits the form above
+              form="profile-form"
               className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
             >
               Update Profile
             </button>
-            
-            {/* --- 3. ADDED DASHBOARD BUTTON --- */}
             <Link
               href="/dashboard"
               className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-600 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
             >
               Back to Dashboard
             </Link>
-
             <button
-              type="button" // Important: prevents form submission
+              type="button"
               onClick={handleLogout}
               className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
             >

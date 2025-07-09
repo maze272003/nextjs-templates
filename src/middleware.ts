@@ -3,23 +3,27 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
-  // --- IMPORTANT: This is a simplified example for demonstration ---
-  // This 'isAuthenticated' cookie is set by your login API route for demo purposes.
-  // In a real app, you'd read and verify a JWT from an HTTP-only cookie.
   const isAuthenticated = request.cookies.get('isAuthenticated')?.value === 'true';
 
-  // If the user tries to access the dashboard and is NOT authenticated
-  if (request.nextUrl.pathname.startsWith('/dashboard')) {
+  const { pathname } = request.nextUrl; // Destructure pathname for easier use
+
+  // --- Logic for PROTECTED ROUTES ---
+  // If the user tries to access a protected route and is NOT authenticated
+  // Add '/profile' to the protected routes check
+  if (pathname.startsWith('/dashboard') || pathname.startsWith('/profile')) {
     if (!isAuthenticated) {
       console.log('Middleware: Not authenticated, redirecting to login.');
+      // Construct the redirect URL, ensuring it's always an absolute URL
       return NextResponse.redirect(new URL('/login', request.url));
     }
   }
 
+  // --- Logic for AUTHENTICATION ROUTES (redirect if already logged in) ---
   // If the user tries to access login/signup while ALREADY authenticated
-  if (request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/signup')) {
+  if (pathname.startsWith('/login') || pathname.startsWith('/signup')) {
     if (isAuthenticated) {
       console.log('Middleware: Authenticated, redirecting from auth page to dashboard.');
+      // Redirect to dashboard (or a home page if you prefer)
       return NextResponse.redirect(new URL('/dashboard', request.url));
     }
   }
@@ -28,6 +32,7 @@ export function middleware(request: NextRequest) {
   return NextResponse.next();
 }
 
+// Update the matcher to include '/profile'
 export const config = {
-  matcher: ['/dashboard/:path*', '/login', '/signup'],
+  matcher: ['/dashboard/:path*', '/profile', '/login', '/signup'],
 };

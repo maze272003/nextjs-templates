@@ -3,7 +3,15 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Layout from '@/components/layout/Layout'; // Assuming your Layout component handles its own loading states
+import Layout from '@/components/layout/Layout';
+
+// You might not need Metadata import here if you have a separate layout.tsx for profile
+// import type { Metadata } from 'next';
+
+// If you removed Metadata export from this file, keep it removed.
+// If you put it back, remember the rule:
+// For pages with 'use client', metadata MUST be in a separate layout.tsx or page.ts file
+// in the same route segment, not directly in the component file.
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -15,8 +23,11 @@ export default function ProfilePage() {
   const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [isError, setIsError] = useState(false);
-  const [loading, setLoading] = useState(true); // Keep loading state to control field states
-  const [initials, setInitials] = useState(''); // State for initials
+  const [loading, setLoading] = useState(true);
+  const [initials, setInitials] = useState('');
+
+  // NEW STATE: For controlling the full-screen image view
+  const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
 
   // Function to generate initials
   const getInitials = (first: string, last: string) => {
@@ -27,8 +38,7 @@ export default function ProfilePage() {
   useEffect(() => {
     const getProfileForCurrentUser = async () => {
       try {
-        setLoading(true); // Still set loading to true while fetching
-        // Step 1: I-check kung sino ang naka-login
+        setLoading(true);
         const sessionResponse = await fetch('/api/auth/check-session');
         if (!sessionResponse.ok) {
           throw new Error('User not authenticated. Redirecting to login.');
@@ -41,10 +51,8 @@ export default function ProfilePage() {
           throw new Error('Could not retrieve user ID from session.');
         }
 
-        // I-set ang user ID sa state para magamit sa pag-update mamaya
         setUserId(currentUserId);
 
-        // Step 2: I-fetch ang profile gamit ang nakuha nating ID
         const profileResponse = await fetch(`/api/profile?userId=${currentUserId}`);
         if (profileResponse.ok) {
           const data = await profileResponse.json();
@@ -52,19 +60,15 @@ export default function ProfilePage() {
           setLastName(data.last_name || '');
           setBio(data.bio || '');
           setProfilePictureUrl(data.profile_picture_url || null);
-
-          // Generate initials based on fetched data
           setInitials(getInitials(data.first_name || '', data.last_name || ''));
-
         } else {
-          // Normal lang na 404 kung wala pang profile ang user
           console.log(`No profile data found for user ${currentUserId}.`);
         }
       } catch (error: any) {
         console.error('Profile page fetch error:', error.message);
-        router.push('/login'); // Kung may problema, pabalikin sa login
+        router.push('/login');
       } finally {
-        setLoading(false); // Set loading to false after fetch attempt
+        setLoading(false);
       }
     };
 
@@ -90,7 +94,6 @@ export default function ProfilePage() {
     }
 
     try {
-      // Gagamitin ng 'PUT' request ang userId na nasa state
       const response = await fetch(`/api/profile?userId=${userId}`, {
         method: 'PUT',
         body: formData,
@@ -103,9 +106,8 @@ export default function ProfilePage() {
         setIsError(false);
         if (data.profile_picture_url) {
           setProfilePictureUrl(data.profile_picture_url);
-          setProfilePicture(null); // Clear selected file after successful upload
+          setProfilePicture(null);
         }
-        // Update initials after successful update
         setInitials(getInitials(firstName, lastName));
       } else {
         setMessage(data.message || 'Failed to update profile.');
@@ -127,8 +129,20 @@ export default function ProfilePage() {
     }
   };
 
-  // Walang conditional rendering para sa `loading` state dito.
-  // Diretso nang ire-render ang content ng page.
+  // --- NEW FUNCTIONS FOR IMAGE VIEWER ---
+  const openImageViewer = () => {
+    if (profilePictureUrl) { // Only open if there's an image to show
+      setIsImageViewerOpen(true);
+      document.body.style.overflow = 'hidden'; // Prevent scrolling when modal is open
+    }
+  };
+
+  const closeImageViewer = () => {
+    setIsImageViewerOpen(false);
+    document.body.style.overflow = ''; // Restore scrolling
+  };
+  // --- END NEW FUNCTIONS ---
+
   return (
     <Layout>
       <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
@@ -138,13 +152,14 @@ export default function ProfilePage() {
           {/* Profile Picture / Initials / No Picture Placeholder */}
           <div className="flex justify-center mb-6">
             {loading ? (
-              // Skeleton for profile picture area while loading
               <div className="w-32 h-32 bg-slate-200 rounded-full animate-pulse"></div>
             ) : profilePictureUrl ? (
+              // Make the image clickable to open the viewer
               <img
                 src={profilePictureUrl}
                 alt="Profile Picture"
-                className="w-32 h-32 rounded-full object-cover border-4 border-indigo-200 shadow-md"
+                className="w-32 h-32 rounded-full object-cover border-4 border-indigo-200 shadow-md cursor-pointer transition-transform duration-200 hover:scale-105"
+                onClick={openImageViewer} // Add onClick handler here
               />
             ) : initials ? (
               <div className="w-32 h-32 rounded-full bg-indigo-600 flex items-center justify-center text-white text-5xl font-bold mx-auto shadow-md">
@@ -167,7 +182,7 @@ export default function ProfilePage() {
                 <input
                   type="text" id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)}
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  disabled={loading} // Disable input while loading
+                  disabled={loading}
                 />
               )}
             </div>
@@ -221,7 +236,7 @@ export default function ProfilePage() {
               type="submit"
               form="profile-form"
               className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-              disabled={loading} // Disable buttons while loading
+              disabled={loading}
             >
               Update Profile
             </button>
@@ -249,6 +264,28 @@ export default function ProfilePage() {
           )}
         </div>
       </div>
+
+      {/* NEW: Full-screen Image Viewer Modal */}
+      {isImageViewerOpen && profilePictureUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-80 p-4"
+          onClick={closeImageViewer} // Click anywhere on the overlay to close
+        >
+          <button
+            onClick={closeImageViewer}
+            className="absolute top-4 right-4 text-white text-4xl font-bold z-50 hover:text-gray-300 transition-colors"
+            aria-label="Close image viewer"
+          >
+            &times; {/* HTML entity for multiplication sign, usually used for close button */}
+          </button>
+          <img
+            src={profilePictureUrl}
+            alt="Profile Picture Full View"
+            className="max-w-full max-h-full object-contain cursor-zoom-out" // Add cursor for better UX
+            onClick={(e) => e.stopPropagation()} // Prevent closing when clicking on the image itself
+          />
+        </div>
+      )}
     </Layout>
   );
 }

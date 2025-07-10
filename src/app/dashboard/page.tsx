@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Layout from '@/components/layout/Layout';
 
 interface ProfileData {
   first_name: string;
@@ -66,6 +67,7 @@ export default function DashboardPage() {
   };
 
   return (
+    <Layout>
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="text-center bg-white p-8 rounded-2xl shadow-lg w-full max-w-2xl space-y-6">
         
@@ -128,5 +130,6 @@ export default function DashboardPage() {
         </div>
       </div>
     </div>
+     </Layout>
   );
 }

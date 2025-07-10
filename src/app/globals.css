@@ -1,26 +1,87 @@
 @import "tailwindcss";
+/* Import Tailwind CSS layers explicitly for best practice *
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
 
+/*
+  Define CSS Variables for colors, primarily for light and dark modes.
+  Using HSL for colors often makes it easier to adjust lightness/darkness
+  for themes without changing hue or saturation drastically.
+*/
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Light Mode Colors */
+  --color-bg-primary: #ffffff; /* Main background */
+  --color-text-primary: #1a202c; /* Main text color (gray-900 equivalent) */
+  --color-border-light: #e2e8f0; /* Light border color (gray-200 equivalent) */
+  --color-accent-blue: #2563eb; /* A consistent blue for accents (blue-600 equivalent) */
+  --color-accent-blue-light: #eff6ff; /* A lighter shade of blue for accents (blue-50 equivalent) */
+
+  /* Fallback font stack - modern and system-friendly */
+  --font-family-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-family-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
+/* Dark Mode Overrides */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --color-bg-primary: #1a202c; /* Dark background (gray-900 equivalent) */
+    --color-text-primary: #f7fafc; /* Light text (gray-100 equivalent) */
+    --color-border-light: #2d3748; /* Darker border (gray-700 equivalent) */
+    --color-accent-blue: #63b3ed; /* A slightly lighter blue for dark mode */
+    --color-accent-blue-light: #2b6cb0; /* Darker light blue for dark mode */
   }
 }
 
+/*
+  Apply base styles to the body.
+  Tailwind's `base` layer already sets `font-family` from its config.
+  However, if you want to explicitly use your CSS variables for font-family
+  or override Tailwind's defaults, you can do it here.
+*/
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-sans); /* Use the defined font variable */
+  -webkit-font-smoothing: antialiased; /* Better font rendering on macOS/iOS */
+  -moz-osx-font-smoothing: grayscale; /* Better font rendering on macOS/iOS */
+  min-height: 100vh; /* Ensure body takes at least full viewport height */
+  display: flex; /* Helps with layout if root element is not already flex */
+  flex-direction: column; /* Helps with layout if root element is not already flex */
+}
+
+/*
+  Optional: Custom scrollbar styles for a cleaner look.
+  This is non-standard but widely supported in WebKit browsers (Chrome, Safari, Edge).
+*/
+::-webkit-scrollbar {
+  width: 8px; /* For vertical scrollbars */
+  height: 8px; /* For horizontal scrollbars */
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e0; /* light gray */
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a0aec0; /* slightly darker gray on hover */
+}
+
+/* Dark mode scrollbar colors */
+@media (prefers-color-scheme: dark) {
+  ::-webkit-scrollbar-track {
+    background: var(--color-bg-primary);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #4a5568; /* dark gray */
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #606f80; /* slightly darker gray on hover */
+  }
 }

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Layout from '@/components/layout/Layout'; // Assuming your Layout component handles its own loading states
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -14,12 +15,19 @@ export default function ProfilePage() {
   const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [isError, setIsError] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Keep loading state to control field states
+  const [initials, setInitials] = useState(''); // State for initials
 
-  // **BAGONG LOGIC: Kunin ang profile para sa current user**
+  // Function to generate initials
+  const getInitials = (first: string, last: string) => {
+    return `${first?.[0] || ''}${last?.[0] || ''}`.toUpperCase();
+  };
+
+  // Kunin ang profile para sa current user
   useEffect(() => {
     const getProfileForCurrentUser = async () => {
       try {
+        setLoading(true); // Still set loading to true while fetching
         // Step 1: I-check kung sino ang naka-login
         const sessionResponse = await fetch('/api/auth/check-session');
         if (!sessionResponse.ok) {
@@ -32,7 +40,7 @@ export default function ProfilePage() {
         if (!currentUserId) {
           throw new Error('Could not retrieve user ID from session.');
         }
-        
+
         // I-set ang user ID sa state para magamit sa pag-update mamaya
         setUserId(currentUserId);
 
@@ -44,6 +52,10 @@ export default function ProfilePage() {
           setLastName(data.last_name || '');
           setBio(data.bio || '');
           setProfilePictureUrl(data.profile_picture_url || null);
+
+          // Generate initials based on fetched data
+          setInitials(getInitials(data.first_name || '', data.last_name || ''));
+
         } else {
           // Normal lang na 404 kung wala pang profile ang user
           console.log(`No profile data found for user ${currentUserId}.`);
@@ -52,12 +64,12 @@ export default function ProfilePage() {
         console.error('Profile page fetch error:', error.message);
         router.push('/login'); // Kung may problema, pabalikin sa login
       } finally {
-        setLoading(false);
+        setLoading(false); // Set loading to false after fetch attempt
       }
     };
 
     getProfileForCurrentUser();
-  }, [router]); // Ang dependency array ay [router] para tumakbo ito isang beses
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,8 +103,10 @@ export default function ProfilePage() {
         setIsError(false);
         if (data.profile_picture_url) {
           setProfilePictureUrl(data.profile_picture_url);
-          setProfilePicture(null);
+          setProfilePicture(null); // Clear selected file after successful upload
         }
+        // Update initials after successful update
+        setInitials(getInitials(firstName, lastName));
       } else {
         setMessage(data.message || 'Failed to update profile.');
         setIsError(true);
@@ -103,9 +117,8 @@ export default function ProfilePage() {
       setIsError(true);
     }
   };
-  
+
   const handleLogout = async () => {
-    // ... (logout logic is the same)
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
       router.push('/login');
@@ -114,76 +127,101 @@ export default function ProfilePage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <p className="text-gray-600">Loading profile...</p>
-      </div>
-    );
-  }
-
-  // Ang JSX part ay pareho pa rin, hindi na kailangan baguhin
+  // Walang conditional rendering para sa `loading` state dito.
+  // Diretso nang ire-render ang content ng page.
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-      <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-2xl">
-        <h1 className="text-3xl font-bold mb-6 text-center text-gray-800">Edit Your Profile</h1>
+    <Layout>
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+        <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-2xl">
+          <h1 className="text-3xl font-bold mb-6 text-center text-gray-800">Edit Your Profile</h1>
 
-        {profilePictureUrl ? (
+          {/* Profile Picture / Initials / No Picture Placeholder */}
           <div className="flex justify-center mb-6">
-            <img
-              src={profilePictureUrl}
-              alt="Profile Picture"
-              className="w-32 h-32 rounded-full object-cover border-4 border-indigo-200 shadow-md"
-            />
-          </div>
-        ) : (
-          <div className="flex justify-center mb-6">
-            <div className="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-sm border-4 border-gray-300">
-              No Picture
-            </div>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} id="profile-form" className="space-y-6">
-          {/* ... form inputs ... */}
-          <div>
-            <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">First Name:</label>
-            <input
-              type="text" id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            />
-          </div>
-          <div>
-            <label htmlFor="lastName" className="block text-sm font-medium text-gray-700">Last Name:</label>
-            <input
-              type="text" id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            />
-          </div>
-          <div>
-            <label htmlFor="bio" className="block text-sm font-medium text-gray-700">Bio:</label>
-            <textarea
-              id="bio" value={bio} onChange={(e) => setBio(e.target.value)} rows={4}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            ></textarea>
-          </div>
-          <div>
-            <label htmlFor="profilePicture" className="block text-sm font-medium text-gray-700">Profile Picture:</label>
-            <input
-              type="file" id="profilePicture" accept="image/*" onChange={(e) => setProfilePicture(e.target.files ? e.target.files[0] : null)}
-              className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-            />
-            {profilePicture && (
-              <p className="mt-2 text-sm text-gray-500">Selected: {profilePicture.name}</p>
+            {loading ? (
+              // Skeleton for profile picture area while loading
+              <div className="w-32 h-32 bg-slate-200 rounded-full animate-pulse"></div>
+            ) : profilePictureUrl ? (
+              <img
+                src={profilePictureUrl}
+                alt="Profile Picture"
+                className="w-32 h-32 rounded-full object-cover border-4 border-indigo-200 shadow-md"
+              />
+            ) : initials ? (
+              <div className="w-32 h-32 rounded-full bg-indigo-600 flex items-center justify-center text-white text-5xl font-bold mx-auto shadow-md">
+                {initials}
+              </div>
+            ) : (
+              <div className="w-32 h-32 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-sm border-4 border-gray-300">
+                No Picture
+              </div>
             )}
           </div>
-        </form>
 
-        <div className="mt-6 flex flex-col sm:flex-row gap-4">
+          <form onSubmit={handleSubmit} id="profile-form" className="space-y-6">
+            {/* First Name Field */}
+            <div>
+              <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">First Name:</label>
+              {loading ? (
+                <div className="mt-1 h-10 bg-slate-200 rounded-md animate-pulse"></div>
+              ) : (
+                <input
+                  type="text" id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  disabled={loading} // Disable input while loading
+                />
+              )}
+            </div>
+            {/* Last Name Field */}
+            <div>
+              <label htmlFor="lastName" className="block text-sm font-medium text-gray-700">Last Name:</label>
+              {loading ? (
+                <div className="mt-1 h-10 bg-slate-200 rounded-md animate-pulse"></div>
+              ) : (
+                <input
+                  type="text" id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  disabled={loading}
+                />
+              )}
+            </div>
+            {/* Bio Field */}
+            <div>
+              <label htmlFor="bio" className="block text-sm font-medium text-gray-700">Bio:</label>
+              {loading ? (
+                <div className="mt-1 h-24 bg-slate-200 rounded-md animate-pulse"></div>
+              ) : (
+                <textarea
+                  id="bio" value={bio} onChange={(e) => setBio(e.target.value)} rows={4}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  disabled={loading}
+                ></textarea>
+              )}
+            </div>
+            {/* Profile Picture Upload Field */}
+            <div>
+              <label htmlFor="profilePicture" className="block text-sm font-medium text-gray-700">Profile Picture:</label>
+              {loading ? (
+                <div className="mt-1 h-10 bg-slate-200 rounded-md animate-pulse"></div>
+              ) : (
+                <input
+                  type="file" id="profilePicture" accept="image/*" onChange={(e) => setProfilePicture(e.target.files ? e.target.files[0] : null)}
+                  className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                  disabled={loading}
+                />
+              )}
+              {profilePicture && (
+                <p className="mt-2 text-sm text-gray-500">Selected: {profilePicture.name}</p>
+              )}
+            </div>
+          </form>
+
+          {/* Action Buttons */}
+          <div className="mt-6 flex flex-col sm:flex-row gap-4">
             <button
               type="submit"
               form="profile-form"
               className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              disabled={loading} // Disable buttons while loading
             >
               Update Profile
             </button>
@@ -197,17 +235,20 @@ export default function ProfilePage() {
               type="button"
               onClick={handleLogout}
               className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+              disabled={loading}
             >
               Logout
             </button>
-        </div>
+          </div>
 
-        {message && (
-          <p className={`mt-4 text-center ${isError ? 'text-red-600' : 'text-green-600'}`}>
-            {message}
-          </p>
-        )}
+          {/* Message Display */}
+          {message && (
+            <p className={`mt-4 text-center ${isError ? 'text-red-600' : 'text-green-600'}`}>
+              {message}
+            </p>
+          )}
+        </div>
       </div>
-    </div>
+    </Layout>
   );
 }

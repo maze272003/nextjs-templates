@@ -8,7 +8,15 @@ export async function POST(req: NextRequest) {
 
     // Clear the 'isAuthenticated' cookie by setting its expiration to a past date
     response.cookies.set('isAuthenticated', '', {
-      httpOnly: false, // Match the setting in login route for demonstration
+      httpOnly: false, // Match the setting in login route for demonstration. For production, consider true.
+      secure: process.env.NODE_ENV === 'production',
+      expires: new Date(0), // Set expiry to past date to delete it immediately
+      path: '/',
+    });
+
+    // Clear the 'user_id' cookie by setting its expiration to a past date
+    response.cookies.set('user_id', '', { // Make sure this cookie name matches what you set in login
+      httpOnly: false, // Match the setting in login route for demonstration. For production, consider true.
       secure: process.env.NODE_ENV === 'production',
       expires: new Date(0), // Set expiry to past date to delete it immediately
       path: '/',

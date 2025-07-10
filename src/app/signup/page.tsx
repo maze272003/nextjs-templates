@@ -1,8 +1,10 @@
+// src/app/signup/page.tsx
 'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+
 
 export default function SignupPage() {
   const [firstName, setFirstName] = useState('');
@@ -17,12 +19,11 @@ export default function SignupPage() {
     password: '',
     general: '',
   });
-  
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
 
   const validateForm = () => {
-    // (Validation logic remains the same)
     const newErrors = { firstName: '', lastName: '', email: '', password: '', general: '' };
     let isValid = true;
 
@@ -73,12 +74,18 @@ export default function SignupPage() {
       const data = await response.json();
 
       if (response.ok) {
-        // <--- 1. Update the success message
-        setErrors({ firstName: '', lastName: '', email: '', password: '', general: 'Signup successful! Redirecting to your dashboard...' });
-        
+        // Redirect to OTP verification page, pass userId in query params
+        setErrors({
+          firstName: '',
+          lastName: '',
+          email: '',
+          password: '',
+          general: 'Signup successful! Please check your email for verification.',
+        });
+
         setTimeout(() => {
-          // <--- 2. Change redirect path to the dashboard
-          router.push('/dashboard');
+          // data.userId will come from the signup API response
+          router.push(`/verify-otp?userId=${data.userId}`);
         }, 1500);
 
       } else {
@@ -93,7 +100,6 @@ export default function SignupPage() {
   };
 
   return (
-    // (Your JSX form remains the same)
     <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
       <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
         <h1 className="text-2xl font-bold mb-6 text-center text-gray-800">Create an Account</h1>
@@ -133,7 +139,7 @@ export default function SignupPage() {
             />
             {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
           </div>
-          
+
           <button
             type="submit" disabled={isSubmitting}
             className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-400"

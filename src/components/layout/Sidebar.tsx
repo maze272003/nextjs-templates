@@ -1,6 +1,7 @@
 'use client';
 
-import { Home, User, Settings, X } from 'lucide-react';
+import { Home, User, Settings, MessageCircle, X } from 'lucide-react';
+
 import Link from 'next/link';
 
 interface ProfileData {
@@ -22,8 +23,10 @@ interface SidebarProps {
 const navLinks = [
   { href: '/dashboard', label: 'Dashboard', icon: Home },
   { href: '/profile', label: 'Profile', icon: User },
+  { href: '/chat', label: 'Chat', icon: MessageCircle }, // ✅ This points to your new chat route
   { href: '/settings', label: 'Settings', icon: Settings },
-  // Ensure this list is consistent with '@/constants/navLinks' if you use that for Navbar
+  
+  
 ];
 
 export default function Sidebar({ isOpen, onClose, pathname, profile, loadingProfile }: SidebarProps) {

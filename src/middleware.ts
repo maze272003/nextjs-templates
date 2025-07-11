@@ -4,35 +4,32 @@ import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
   const isAuthenticated = request.cookies.get('isAuthenticated')?.value === 'true';
+  const { pathname } = request.nextUrl;
 
-  const { pathname } = request.nextUrl; // Destructure pathname for easier use
+  // --- Protect routes: dashboard, profile, chat ---
+  const protectedRoutes = ['/dashboard', '/profile', '/chat'];
 
-  // --- Logic for PROTECTED ROUTES ---
-  // If the user tries to access a protected route and is NOT authenticated
-  // Add '/profile' to the protected routes check
-  if (pathname.startsWith('/dashboard') || pathname.startsWith('/profile')) {
+  if (protectedRoutes.some((route) => pathname.startsWith(route))) {
     if (!isAuthenticated) {
-      console.log('Middleware: Not authenticated, redirecting to login.');
-      // Construct the redirect URL, ensuring it's always an absolute URL
+      console.log('Middleware: Not authenticated, redirecting to /login.');
       return NextResponse.redirect(new URL('/login', request.url));
     }
   }
 
-  // --- Logic for AUTHENTICATION ROUTES (redirect if already logged in) ---
-  // If the user tries to access login/signup while ALREADY authenticated
-  if (pathname.startsWith('/login') || pathname.startsWith('/signup')) {
+  // --- Prevent logged-in users from seeing login/signup ---
+  const authPages = ['/login', '/signup'];
+  if (authPages.some((route) => pathname.startsWith(route))) {
     if (isAuthenticated) {
-      console.log('Middleware: Authenticated, redirecting from auth page to dashboard.');
-      // Redirect to dashboard (or a home page if you prefer)
+      console.log('Middleware: Already authenticated, redirecting to /dashboard.');
       return NextResponse.redirect(new URL('/dashboard', request.url));
     }
   }
 
-  // Allow the request to proceed if no redirect is needed
+  // Allow everything else through
   return NextResponse.next();
 }
 
-// Update the matcher to include '/profile'
+// 👇 Match only these routes for middleware protection
 export const config = {
-  matcher: ['/dashboard/:path*', '/profile', '/login', '/signup'],
+  matcher: ['/dashboard/:path*', '/profile', '/chat', '/login', '/signup'],
 };

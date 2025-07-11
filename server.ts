@@ -47,26 +47,35 @@ app.prepare().then(() => {
         console.log(`Socket ${socket.id} joined room ${roomName}`);
     });
 
-    // 3. Magpadala ng private message
+    // 3. Magpadala ng private message (UPDATED)
     socket.on('private-message', async (data) => {
-      const { content, senderId, receiverId, username } = data;
+      const { content, senderId, receiverId } = data; // We only need these for the API call
       
       try {
-        // I-save sa DB via API
+        // I-save sa DB via API. The API now returns the *complete* message object.
         const response = await fetch(`http://${hostname}:${port}/api/messages`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ content, senderId, receiverId }),
         });
-        const savedMessage = await response.json();
+
+        if (!response.ok) {
+            const errorBody = await response.text();
+            throw new Error(`API request failed: ${response.status} - ${errorBody}`);
+        }
+
+        // The API now returns the full object with id, created_at, username, etc.
+        const savedMessageWithDetails = await response.json();
 
         // I-broadcast sa tamang room
         const roomName = [senderId, receiverId].sort().join('-');
-        io.to(roomName).emit('new-private-message', { ...savedMessage, username });
-        console.log(`Message sent to room ${roomName}`);
+        
+        // Emit the complete object directly.
+        io.to(roomName).emit('new-private-message', savedMessageWithDetails);
+        console.log(`Message broadcasted to room ${roomName}:`, savedMessageWithDetails);
 
       } catch (error) {
-          console.error("Failed to save or broadcast message", error);
+          console.error("Failed to save or broadcast message:", error);
       }
     });
 

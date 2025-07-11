@@ -2,10 +2,10 @@
 'use client';
 
 import { useState, useEffect, FormEvent, useRef } from 'react';
-import { io, Socket } from 'socket.io-client';
-import { Send, MessageSquare } from 'lucide-react'; // <-- Import icon
+import { Socket } from 'socket.io-client';
+import { Send, MessageSquare } from 'lucide-react';
 
-// (Your interfaces here...)
+// (Interfaces)
 interface Profile {
     id: number;
     first_name: string;
@@ -16,13 +16,12 @@ interface SelectedUser {
     last_name: string;
 }
 interface Message {
-    id: number | string;
+    id: number; // The ID from the database is now guaranteed
     content: string;
     sender_id: number;
     username: string;
-    created_at: string; // <-- Idagdag para sa timestamp
+    created_at: string; // The timestamp from the database
 }
-
 
 interface ChatBoxProps {
     socket: Socket;
@@ -52,14 +51,15 @@ export default function ChatBox({ socket, currentUser, selectedUser }: ChatBoxPr
         };
 
         if (selectedUser && currentUser) {
-            setChatLog([]); // I-clear ang chat log bago mag-load ng bago
+            setChatLog([]); // Clear chat log before loading new history
             socket.emit('join-private-room', currentUser.id, selectedUser.id);
             fetchHistory();
         }
 
         const handleNewMessage = (newMessage: Message) => {
+            // Check if the message belongs to the currently active conversation
             if (selectedUser && (newMessage.sender_id === selectedUser.id || newMessage.sender_id === currentUser?.id)) {
-                setChatLog((prev) => [...prev, newMessage]);
+                setChatLog((prevChatLog) => [...prevChatLog, newMessage]);
             }
         };
 
@@ -82,14 +82,13 @@ export default function ChatBox({ socket, currentUser, selectedUser }: ChatBoxPr
                 content: message,
                 senderId: currentUser.id,
                 receiverId: selectedUser.id,
-                username: currentUser.first_name,
+                // username is no longer needed here, the backend handles it
             };
             socket.emit('private-message', messageData);
             setMessage('');
         }
     };
 
-    // Kung wala pang pinipiling ka-chat
     if (!selectedUser) {
         return (
             <div className="flex flex-col items-center justify-center h-full text-gray-400 bg-white">
@@ -108,6 +107,7 @@ export default function ChatBox({ socket, currentUser, selectedUser }: ChatBoxPr
             <div className="flex-grow p-4 overflow-y-auto bg-gray-50">
                 {loadingHistory ? <div className="text-center text-gray-500">Loading history...</div> : (
                     chatLog.map((msg) => (
+                        // UPDATED: Use the database ID for a stable and unique key.
                         <div key={msg.id} className={`flex ${msg.sender_id === currentUser?.id ? 'justify-end' : 'justify-start'} mb-3`}>
                             <div className={`p-3 rounded-2xl max-w-[70%] ${
                                 msg.sender_id === currentUser?.id 

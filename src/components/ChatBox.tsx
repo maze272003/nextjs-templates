@@ -5,7 +5,7 @@ import { useState, useEffect, FormEvent, useRef } from 'react';
 import { Socket } from 'socket.io-client';
 import { Send, MessageSquare } from 'lucide-react';
 
-// (Interfaces)
+// (Interfaces - no changes needed)
 interface Profile {
     id: number;
     first_name: string;
@@ -16,11 +16,11 @@ interface SelectedUser {
     last_name: string;
 }
 interface Message {
-    id: number; // The ID from the database is now guaranteed
+    id: number | string; // Allow string for our temporary ID
     content: string;
     sender_id: number;
     username: string;
-    created_at: string; // The timestamp from the database
+    created_at: string;
 }
 
 interface ChatBoxProps {
@@ -51,15 +51,29 @@ export default function ChatBox({ socket, currentUser, selectedUser }: ChatBoxPr
         };
 
         if (selectedUser && currentUser) {
-            setChatLog([]); // Clear chat log before loading new history
+            setChatLog([]);
             socket.emit('join-private-room', currentUser.id, selectedUser.id);
             fetchHistory();
         }
 
-        const handleNewMessage = (newMessage: Message) => {
-            // Check if the message belongs to the currently active conversation
-            if (selectedUser && (newMessage.sender_id === selectedUser.id || newMessage.sender_id === currentUser?.id)) {
-                setChatLog((prevChatLog) => [...prevChatLog, newMessage]);
+        // FIX: Updated logic to handle optimistic UI
+        const handleNewMessage = (newMessageFromServer: Message) => {
+            if (!currentUser || !selectedUser) return;
+
+            // Check if this is the confirmation of the message we just sent
+            if (newMessageFromServer.sender_id === currentUser.id) {
+                // Replace our temporary message with the final one from the server
+                setChatLog(prevLog => 
+                    prevLog.map(msg => 
+                        // We identify our temp message because its ID is a string
+                        typeof msg.id === 'string' && msg.content === newMessageFromServer.content 
+                        ? newMessageFromServer 
+                        : msg
+                    )
+                );
+            } else if (newMessageFromServer.sender_id === selectedUser.id) {
+                // If the message is from the other user, just add it
+                setChatLog((prevLog) => [...prevLog, newMessageFromServer]);
             }
         };
 
@@ -75,16 +89,34 @@ export default function ChatBox({ socket, currentUser, selectedUser }: ChatBoxPr
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [chatLog]);
 
+    // FIX: Updated submit handler for optimistic UI
     const handleSubmit = (e: FormEvent) => {
         e.preventDefault();
         if (message.trim() && currentUser && selectedUser) {
+            
+            // 1. Create a temporary message object to display immediately.
+            const optimisticMessage: Message = {
+                id: `temp-${Date.now()}`, // A unique temporary ID
+                content: message,
+                sender_id: currentUser.id,
+                username: currentUser.first_name,
+                created_at: new Date().toISOString(), // Use current time
+            };
+
+            // 2. Add it to the chat log state so it appears instantly.
+            setChatLog(prevLog => [...prevLog, optimisticMessage]);
+
+            // 3. Create the data to send to the server.
             const messageData = {
                 content: message,
                 senderId: currentUser.id,
                 receiverId: selectedUser.id,
-                // username is no longer needed here, the backend handles it
             };
+
+            // 4. Emit the message to the server to be saved and broadcast.
             socket.emit('private-message', messageData);
+            
+            // 5. Clear the input field.
             setMessage('');
         }
     };
@@ -107,7 +139,7 @@ export default function ChatBox({ socket, currentUser, selectedUser }: ChatBoxPr
             <div className="flex-grow p-4 overflow-y-auto bg-gray-50">
                 {loadingHistory ? <div className="text-center text-gray-500">Loading history...</div> : (
                     chatLog.map((msg) => (
-                        // UPDATED: Use the database ID for a stable and unique key.
+                        // This JSX logic is now correct because our optimistic message has the right sender_id
                         <div key={msg.id} className={`flex ${msg.sender_id === currentUser?.id ? 'justify-end' : 'justify-start'} mb-3`}>
                             <div className={`p-3 rounded-2xl max-w-[70%] ${
                                 msg.sender_id === currentUser?.id 

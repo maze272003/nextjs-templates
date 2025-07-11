@@ -4,11 +4,12 @@ import db from '@/lib/db';
 
 export async function GET() {
   try {
-    // --- DATABASE LOGIC ---
-    // Gumagamit tayo ng array destructuring para makuha ang unang item (ang data rows)
-    const [rows] = await db.query('SELECT id, first_name, last_name FROM users');
+    // FIX: Add profile_picture_url to the SELECT statement.
+    // Make sure your 'users' table has a column named 'profile_picture_url'.
+    const [rows] = await db.query(
+      'SELECT id, first_name, last_name, profile_picture_url FROM users'
+    );
     
-    // Ang `rows` na ngayon ang naglalaman ng iyong data
     return NextResponse.json(rows);
 
   } catch (error) {

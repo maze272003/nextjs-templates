@@ -5,22 +5,25 @@ import { useState, useEffect, FormEvent, useRef } from 'react';
 import { Socket } from 'socket.io-client';
 import { Send, MessageSquare } from 'lucide-react';
 
-// (Interfaces - no changes needed)
+// Interfaces (No change needed here)
+interface Message {
+    id: number | string;
+    content: string;
+    sender_id: number;
+    username: string;
+    created_at: string;
+    profile_picture_url: string | null;
+}
 interface Profile {
     id: number;
     first_name: string;
+    profile_picture_url: string | null;
 }
 interface SelectedUser {
     id: number;
     first_name: string;
     last_name: string;
-}
-interface Message {
-    id: number | string; // Allow string for our temporary ID
-    content: string;
-    sender_id: number;
-    username: string;
-    created_at: string;
+    profile_picture_url: string | null;
 }
 
 interface ChatBoxProps {
@@ -35,6 +38,8 @@ export default function ChatBox({ socket, currentUser, selectedUser }: ChatBoxPr
     const [loadingHistory, setLoadingHistory] = useState(false);
     const chatEndRef = useRef<HTMLDivElement>(null);
 
+    // All useEffect and handleSubmit logic can remain the same
+    // ... (no changes needed in the logic part)
     useEffect(() => {
         const fetchHistory = async () => {
             if (!currentUser || !selectedUser) return;
@@ -56,23 +61,17 @@ export default function ChatBox({ socket, currentUser, selectedUser }: ChatBoxPr
             fetchHistory();
         }
 
-        // FIX: Updated logic to handle optimistic UI
         const handleNewMessage = (newMessageFromServer: Message) => {
             if (!currentUser || !selectedUser) return;
-
-            // Check if this is the confirmation of the message we just sent
-            if (newMessageFromServer.sender_id === currentUser.id) {
-                // Replace our temporary message with the final one from the server
+            if (Number(newMessageFromServer.sender_id) === Number(currentUser.id)) {
                 setChatLog(prevLog => 
                     prevLog.map(msg => 
-                        // We identify our temp message because its ID is a string
                         typeof msg.id === 'string' && msg.content === newMessageFromServer.content 
                         ? newMessageFromServer 
                         : msg
                     )
                 );
-            } else if (newMessageFromServer.sender_id === selectedUser.id) {
-                // If the message is from the other user, just add it
+            } else if (Number(newMessageFromServer.sender_id) === Number(selectedUser.id)) {
                 setChatLog((prevLog) => [...prevLog, newMessageFromServer]);
             }
         };
@@ -89,37 +88,28 @@ export default function ChatBox({ socket, currentUser, selectedUser }: ChatBoxPr
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [chatLog]);
 
-    // FIX: Updated submit handler for optimistic UI
     const handleSubmit = (e: FormEvent) => {
         e.preventDefault();
         if (message.trim() && currentUser && selectedUser) {
-            
-            // 1. Create a temporary message object to display immediately.
             const optimisticMessage: Message = {
-                id: `temp-${Date.now()}`, // A unique temporary ID
+                id: `temp-${Date.now()}`,
                 content: message,
                 sender_id: currentUser.id,
                 username: currentUser.first_name,
-                created_at: new Date().toISOString(), // Use current time
+                created_at: new Date().toISOString(),
+                profile_picture_url: currentUser.profile_picture_url,
             };
-
-            // 2. Add it to the chat log state so it appears instantly.
             setChatLog(prevLog => [...prevLog, optimisticMessage]);
-
-            // 3. Create the data to send to the server.
             const messageData = {
                 content: message,
                 senderId: currentUser.id,
                 receiverId: selectedUser.id,
             };
-
-            // 4. Emit the message to the server to be saved and broadcast.
             socket.emit('private-message', messageData);
-            
-            // 5. Clear the input field.
             setMessage('');
         }
     };
+    
 
     if (!selectedUser) {
         return (
@@ -133,27 +123,53 @@ export default function ChatBox({ socket, currentUser, selectedUser }: ChatBoxPr
 
     return (
         <div className="flex flex-col h-full bg-white">
-            <div className="p-4 border-b font-semibold text-gray-800 shadow-sm">
-                Chat with {selectedUser.first_name} {selectedUser.last_name}
+            <div className="p-4 border-b font-semibold text-gray-800 shadow-sm flex items-center space-x-3">
+                {selectedUser.profile_picture_url ? (
+                    <img src={selectedUser.profile_picture_url} alt={selectedUser.first_name} className="w-8 h-8 rounded-full object-cover" />
+                ) : (
+                    <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-sm font-bold text-gray-600">
+                        {selectedUser.first_name?.[0] || ''}
+                    </div>
+                )}
+                <span>Chat with {selectedUser.first_name} {selectedUser.last_name}</span>
             </div>
+            
             <div className="flex-grow p-4 overflow-y-auto bg-gray-50">
                 {loadingHistory ? <div className="text-center text-gray-500">Loading history...</div> : (
-                    chatLog.map((msg) => (
-                        // This JSX logic is now correct because our optimistic message has the right sender_id
-                        <div key={msg.id} className={`flex ${msg.sender_id === currentUser?.id ? 'justify-end' : 'justify-start'} mb-3`}>
-                            <div className={`p-3 rounded-2xl max-w-[70%] ${
-                                msg.sender_id === currentUser?.id 
-                                ? 'bg-blue-600 text-white rounded-br-none' 
-                                : 'bg-gray-200 text-black rounded-bl-none'
-                            }`}>
-                                {msg.sender_id !== currentUser?.id && <strong className="block text-xs text-blue-700">{msg.username}</strong>}
-                                <p className="text-sm">{msg.content}</p>
-                                <p className={`text-xs mt-1 opacity-70 ${msg.sender_id === currentUser?.id ? 'text-blue-100' : 'text-gray-500'}`}>
-                                    {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </p>
+                    chatLog.map((msg, idx) => {
+                        // ================= THE ONLY FIX YOU NEED =================
+                        // FIX: Convert both IDs to Number before comparing them.
+                        const isSender = Number(msg.sender_id) === Number(currentUser?.id);
+                        // =======================================================
+
+                        return (
+                           <div key={`${msg.id}-${msg.created_at}-${idx}`} className={`flex items-end gap-2 mb-3 ${isSender ? 'justify-end' : 'justify-start'}`}>
+
+                                {!isSender && (
+                                    <div className="flex-shrink-0">
+                                        {msg.profile_picture_url ? (
+                                            <img src={msg.profile_picture_url} alt={msg.username} className="w-8 h-8 rounded-full object-cover"/>
+                                        ) : (
+                                            <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-sm font-bold text-gray-600">
+                                                {msg.username?.[0] || ''}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                                <div className={`p-3 rounded-2xl max-w-[70%] ${
+                                    isSender 
+                                    ? 'bg-blue-600 text-white rounded-br-none' 
+                                    : 'bg-gray-200 text-black rounded-bl-none'
+                                }`}>
+                                    {!isSender && <strong className="block text-xs text-blue-700 mb-1">{msg.username}</strong>}
+                                    <p className="text-sm">{msg.content}</p>
+                                    <p className={`text-xs mt-1 text-right opacity-70 ${isSender ? 'text-blue-100' : 'text-gray-500'}`}>
+                                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </p>
+                                </div>
                             </div>
-                        </div>
-                    ))
+                        )
+                    })
                 )}
                 <div ref={chatEndRef} />
             </div>

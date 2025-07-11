@@ -1,18 +1,20 @@
 'use client';
 
 import { useState, useEffect } from "react";
-import UserListSkeleton from './UserListSkeleton'; // <-- Import ang skeleton
+import UserListSkeleton from './UserListSkeleton';
 
+// FIX: Update the User interface to include the profile picture URL
 interface User {
     id: number;
     first_name: string;
     last_name: string;
+    profile_picture_url: string | null; // Can be a string or null
 }
 
 interface UserListProps {
     onSelectUser: (user: User) => void;
     currentUserId: number | null;
-    selectedUserId: number | null; // <-- Idagdag para malaman kung sino ang active
+    selectedUserId: number | null;
 }
 
 export default function UserList({ onSelectUser, currentUserId, selectedUserId }: UserListProps) {
@@ -21,7 +23,7 @@ export default function UserList({ onSelectUser, currentUserId, selectedUserId }
 
     useEffect(() => {
         const fetchUsers = async () => {
-            setLoading(true); // Simulan ang loading
+            setLoading(true);
             try {
                 const response = await fetch('/api/users');
                 const data: User[] = await response.json();
@@ -29,7 +31,7 @@ export default function UserList({ onSelectUser, currentUserId, selectedUserId }
             } catch (error) {
                 console.error("Failed to fetch users:", error);
             } finally {
-                setLoading(false); // Tapusin ang loading
+                setLoading(false);
             }
         };
         if(currentUserId) {
@@ -37,7 +39,6 @@ export default function UserList({ onSelectUser, currentUserId, selectedUserId }
         }
     }, [currentUserId]);
 
-    // Gagamitin na natin ang skeleton loader! ✨
     if (loading) return <UserListSkeleton />;
 
     return (
@@ -51,13 +52,26 @@ export default function UserList({ onSelectUser, currentUserId, selectedUserId }
                     return (
                         <li key={user.id} 
                             onClick={() => onSelectUser(user)}
-                            className={`flex items-center space-x-3 p-3 cursor-pointer transition-colors duration-200 ${
+                            className={`flex items-center space-x-4 p-3 cursor-pointer transition-colors duration-200 ${
                                 isActive ? 'bg-blue-100' : 'hover:bg-gray-100'
                             }`}
                         >
-                            <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold flex-shrink-0">
-                                {initials}
-                            </div>
+                            {/* --- AVATAR FIX --- */}
+                            {user.profile_picture_url ? (
+                                // If user has a profile picture, display it
+                                <img 
+                                    src={user.profile_picture_url} 
+                                    alt={`${user.first_name} ${user.last_name}`}
+                                    className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                                />
+                            ) : (
+                                // Otherwise, display the initials as a fallback
+                                <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold flex-shrink-0">
+                                    {initials}
+                                </div>
+                            )}
+                            {/* --- END AVATAR FIX --- */}
+
                             <span className="font-medium text-gray-800 truncate">
                                 {user.first_name} {user.last_name}
                             </span>

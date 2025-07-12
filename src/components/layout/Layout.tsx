@@ -1,71 +1,104 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import {
+    createContext,
+    useContext,
+    useState,
+    useEffect,
+    ReactNode
+} from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Sidebar from './Sidebar';
 import Navbar from './Navbar';
 
-interface ProfileData {
+// --- Interfaces and Context Definition ---
+interface Profile {
+  id: number;
   first_name: string;
   last_name: string;
   bio: string;
   profile_picture_url: string | null;
 }
 
-export default function Layout({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
-  const pathname = usePathname();
+interface UserContextType {
+  profile: Profile | null;
+  loading: boolean;
+  isAuthenticated: boolean;
+}
 
-  const [isSidebarOpen, setSidebarOpen] = useState(false);
-  const [profile, setProfile] = useState<ProfileData | null>(null);
-  const [loadingProfile, setLoadingProfile] = useState(true);
+const UserContext = createContext<UserContextType | undefined>(undefined);
+
+// --- Custom Hook ---
+export function useUser() {
+  const context = useContext(UserContext);
+  if (context === undefined) {
+    throw new Error('useUser must be used within the Layout component');
+  }
+  return context;
+}
+
+// --- Provider Component ---
+function UserProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
     const getProfileForCurrentUser = async () => {
       try {
-        setLoadingProfile(true);
-
         const sessionResponse = await fetch('/api/auth/check-session');
-        if (!sessionResponse.ok) {
-          throw new Error('User not authenticated or session invalid.');
-        }
-
+        if (!sessionResponse.ok) throw new Error('Not authenticated');
         const sessionData = await sessionResponse.json();
-        const currentUserId = sessionData.userId;
+        if (!sessionData.userId) throw new Error('User ID not found');
 
-        if (!currentUserId) {
-          throw new Error('Could not retrieve user ID from session.');
-        }
+        const profileResponse = await fetch(`/api/profile?userId=${sessionData.userId}`);
+        const profileData: Profile = await profileResponse.json();
+        
+        const fullProfile = { ...profileData, id: sessionData.userId };
+        setProfile(fullProfile);
+        setIsAuthenticated(true);
 
-        const profileResponse = await fetch(`/api/profile?userId=${currentUserId}`);
-        if (profileResponse.ok) {
-          const profileData: ProfileData = await profileResponse.json();
-          setProfile(profileData);
-        } else {
-          console.warn(`Profile not found for userId: ${currentUserId}`);
-          setProfile(null);
-        }
-      } catch (error: any) {
-        console.error('Failed to fetch profile in Layout:', error.message);
+      } catch (error) {
+        console.error('Failed to fetch profile in Layout Provider:', error);
         setProfile(null);
-        router.push('/login');
+        setIsAuthenticated(false);
       } finally {
-        setLoadingProfile(false);
+        setLoading(false);
       }
     };
 
     getProfileForCurrentUser();
   }, [router]);
 
-  const toggleSidebar = () => {
-    setSidebarOpen(!isSidebarOpen);
-  };
+  const value = { profile, loading, isAuthenticated };
 
-  const closeSidebar = () => {
-    setSidebarOpen(false);
-  };
+  return (
+    <UserContext.Provider value={value}>
+      {children}
+    </UserContext.Provider>
+  );
+}
 
-  // Ang full-page loader ay inalis na. ✅
+// --- Main Layout Component ---
+export default function Layout({ children }: { children: ReactNode }) {
+  return (
+    <UserProvider>
+      <LayoutContent>{children}</LayoutContent>
+    </UserProvider>
+  );
+}
+
+// --- Inner Layout Content ---
+function LayoutContent({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const { profile, loading } = useUser();
+  const [isSidebarOpen, setSidebarOpen] = useState(false);
+
+  // The preloader block has been removed from here.
+
+  const toggleSidebar = () => setSidebarOpen(!isSidebarOpen);
+  const closeSidebar = () => setSidebarOpen(false);
   
   return (
     <div className="flex h-screen bg-gray-100">
@@ -74,7 +107,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         onClose={closeSidebar}
         pathname={pathname}
         profile={profile}
-        loadingProfile={loadingProfile}
+        loadingProfile={loading}
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -82,10 +115,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           onMenuClick={toggleSidebar}
           pathname={pathname}
           profile={profile}
-          loadingProfile={loadingProfile}
+          loadingProfile={loading}
         />
 
-        <main className="flex-1 p-4 md:p-6 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto">
           {children}
         </main>
       </div>

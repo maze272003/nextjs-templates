@@ -1,11 +1,10 @@
-// src/contexts/ProfileContext.tsx
 'use client';
 
-import { createContext, useState, useEffect, useContext, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 
-// Interface for the profile data
-export interface ProfileData {
+// 1. Define the shape of the profile data
+interface Profile {
   id: number;
   first_name: string;
   last_name: string;
@@ -13,71 +12,74 @@ export interface ProfileData {
   profile_picture_url: string | null;
 }
 
-// Interface for the context value
-interface ProfileContextType {
-  profile: ProfileData | null;
-  loadingProfile: boolean;
-  refetchProfile: () => void; // Function to manually refetch profile data after an update
+// 2. Define the shape of the context value
+interface UserContextType {
+  profile: Profile | null;
+  loading: boolean;
+  isAuthenticated: boolean;
 }
 
-// Create the context with a default undefined value
-const ProfileContext = createContext<ProfileContextType | undefined>(undefined);
+// 3. Create the context with a default value
+const UserContext = createContext<UserContextType | undefined>(undefined);
 
-// Provider component that will wrap our authenticated routes
-export const ProfileProvider = ({ children }: { children: ReactNode }) => {
+// 4. Create the Provider component
+export function UserProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const [profile, setProfile] = useState<ProfileData | null>(null);
-  const [loadingProfile, setLoadingProfile] = useState(true);
-
-  const fetchProfile = async () => {
-    setLoadingProfile(true);
-    try {
-      // 1. Check if the user is authenticated
-      const sessionResponse = await fetch('/api/auth/check-session');
-      if (!sessionResponse.ok) {
-        throw new Error('User not authenticated. Redirecting to login.');
-      }
-      const sessionData = await sessionResponse.json();
-      const currentUserId = sessionData.userId;
-
-      if (!currentUserId) {
-        throw new Error('Could not retrieve user ID from session.');
-      }
-
-      // 2. Fetch the user's profile data
-      const profileResponse = await fetch(`/api/profile?userId=${currentUserId}`);
-      if (profileResponse.ok) {
-        const profileData = await profileResponse.json();
-        setProfile({ ...profileData, id: currentUserId }); // Add user ID to profile object
-      } else {
-        // If no profile exists, create a basic profile object
-        setProfile({ id: currentUserId, first_name: 'New', last_name: 'User', bio: '', profile_picture_url: null });
-      }
-    } catch (error: any) {
-      console.error('ProfileProvider fetch error:', error.message);
-      setProfile(null);
-      router.push('/login'); // Redirect to login on any auth error
-    } finally {
-      setLoadingProfile(false);
-    }
-  };
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    fetchProfile();
+    const getProfileForCurrentUser = async () => {
+      try {
+        // One request to get session and user ID
+        const sessionResponse = await fetch('/api/auth/check-session');
+        if (!sessionResponse.ok) {
+          throw new Error('Not authenticated');
+        }
+        const sessionData = await sessionResponse.json();
+        if (!sessionData.userId) {
+          throw new Error('User ID not found');
+        }
+
+        // Second request to get profile details
+        const profileResponse = await fetch(`/api/profile?userId=${sessionData.userId}`);
+        if (!profileResponse.ok) {
+          throw new Error('Profile not found');
+        }
+        const profileData = await profileResponse.json();
+
+        // Combine data and update state
+        setProfile({ ...profileData, id: sessionData.userId });
+        setIsAuthenticated(true);
+
+      } catch (error) {
+        console.error("Authentication check failed:", error);
+        setIsAuthenticated(false);
+        // Uncomment the line below if you want to force redirect on any failed auth check
+        // router.push('/login');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    getProfileForCurrentUser();
   }, [router]);
 
-  return (
-    <ProfileContext.Provider value={{ profile, loadingProfile, refetchProfile: fetchProfile }}>
-      {children}
-    </ProfileContext.Provider>
-  );
-};
+  const value = { profile, loading, isAuthenticated };
 
-// Custom hook to easily consume the context
-export const useProfile = () => {
-  const context = useContext(ProfileContext);
+  return (
+    <UserContext.Provider value={value}>
+      {children}
+    </UserContext.Provider>
+  );
+}
+
+// 5. Create a custom hook for easy consumption
+export function useUser() {
+  const context = useContext(UserContext);
   if (context === undefined) {
-    throw new Error('useProfile must be used within a ProfileProvider');
+    throw new Error('useUser must be used within a UserProvider');
   }
   return context;
-};
+}

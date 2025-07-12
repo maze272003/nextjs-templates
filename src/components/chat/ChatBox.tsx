@@ -2,7 +2,7 @@
 
 import { useState, useEffect, FormEvent, useRef } from 'react';
 import { Socket } from 'socket.io-client';
-import { Send, MessageSquare, ArrowLeft } from 'lucide-react';
+import { Send, MessageSquare, ArrowLeft, MessagesSquare } from 'lucide-react';
 
 // Interfaces for data shapes
 interface Message {
@@ -49,6 +49,7 @@ export default function ChatBox({ socket, currentUser, selectedUser, onBack }: C
                 setChatLog(history);
             } catch (error) {
                 console.error("Failed to fetch chat history:", error);
+                setChatLog([]); // Ensure chat is empty on error
             } finally {
                 setLoadingHistory(false);
             }
@@ -63,7 +64,6 @@ export default function ChatBox({ socket, currentUser, selectedUser, onBack }: C
         const handleNewMessage = (newMessageFromServer: Message) => {
             if (!currentUser || !selectedUser) return;
             
-            // Logic for handling optimistic updates and incoming messages
             if (Number(newMessageFromServer.sender_id) === Number(currentUser.id)) {
                 setChatLog(prevLog => 
                     prevLog.map(msg => 
@@ -81,11 +81,9 @@ export default function ChatBox({ socket, currentUser, selectedUser, onBack }: C
         
         return () => {
             socket.off('new-private-message', handleNewMessage);
-        }
-
+        };
     }, [selectedUser, currentUser, socket]);
 
-    // Scroll to the bottom of the chat on new messages
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [chatLog]);
@@ -139,7 +137,15 @@ export default function ChatBox({ socket, currentUser, selectedUser, onBack }: C
             </div>
             
             <div className="flex-grow p-4 overflow-y-auto bg-gray-50">
-                {loadingHistory ? <div className="text-center text-gray-500">Loading history...</div> : (
+                {loadingHistory ? (
+                    <div className="text-center text-gray-500">Loading history...</div>
+                ) : chatLog.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                        <MessagesSquare size={60} className="mb-4" />
+                        <h3 className="text-xl font-semibold">No messages yet</h3>
+                        <p className="text-sm">Be the first to say something!</p>
+                    </div>
+                ) : (
                     chatLog.map((msg, idx) => {
                         const isSender = Number(msg.sender_id) === Number(currentUser?.id);
                         return (
@@ -161,14 +167,13 @@ export default function ChatBox({ socket, currentUser, selectedUser, onBack }: C
                                     : 'bg-gray-200 text-black rounded-bl-none'
                                 }`}>
                                     {!isSender && <strong className="block text-xs text-blue-700 mb-1">{msg.username}</strong>}
-                                    {/* THIS IS THE FIX: Added 'break-all' to the message paragraph */}
                                     <p className="text-sm break-all">{msg.content}</p>
                                     <p className={`text-xs mt-1 text-right opacity-70 ${isSender ? 'text-blue-100' : 'text-gray-500'}`}>
                                         {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </p>
                                 </div>
                             </div>
-                        )
+                        );
                     })
                 )}
                 <div ref={chatEndRef} />

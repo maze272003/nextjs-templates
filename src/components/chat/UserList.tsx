@@ -3,12 +3,11 @@
 import { useState, useEffect } from "react";
 import UserListSkeleton from './UserListSkeleton';
 
-// FIX: Update the User interface to include the profile picture URL
 interface User {
     id: number;
     first_name: string;
     last_name: string;
-    profile_picture_url: string | null; // Can be a string or null
+    profile_picture_url: string | null;
 }
 
 interface UserListProps {
@@ -26,10 +25,21 @@ export default function UserList({ onSelectUser, currentUserId, selectedUserId }
             setLoading(true);
             try {
                 const response = await fetch('/api/users');
-                const data: User[] = await response.json();
-                setUsers(data.filter(user => user.id !== currentUserId));
+                const data = await response.json();
+
+                // Check if the response has a 'users' property and it's an array
+                const usersArray = data && Array.isArray(data.users) ? data.users : (Array.isArray(data) ? data : []);
+
+                // Filter out the current user and then sort alphabetically
+                const sortedAndFilteredUsers = usersArray
+                    .filter((user: User) => user.id !== currentUserId)
+                    .sort((a: User, b: User) => a.first_name.localeCompare(b.first_name));
+
+                setUsers(sortedAndFilteredUsers);
+
             } catch (error) {
                 console.error("Failed to fetch users:", error);
+                setUsers([]); // Set to empty array on error
             } finally {
                 setLoading(false);
             }
@@ -56,22 +66,17 @@ export default function UserList({ onSelectUser, currentUserId, selectedUserId }
                                 isActive ? 'bg-blue-100' : 'hover:bg-gray-100'
                             }`}
                         >
-                            {/* --- AVATAR FIX --- */}
                             {user.profile_picture_url ? (
-                                // If user has a profile picture, display it
                                 <img 
                                     src={user.profile_picture_url} 
                                     alt={`${user.first_name} ${user.last_name}`}
                                     className="w-10 h-10 rounded-full object-cover flex-shrink-0"
                                 />
                             ) : (
-                                // Otherwise, display the initials as a fallback
                                 <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold flex-shrink-0">
                                     {initials}
                                 </div>
                             )}
-                            {/* --- END AVATAR FIX --- */}
-
                             <span className="font-medium text-gray-800 truncate">
                                 {user.first_name} {user.last_name}
                             </span>
@@ -80,5 +85,5 @@ export default function UserList({ onSelectUser, currentUserId, selectedUserId }
                 })}
             </ul>
         </div>
-    )
+    );
 }

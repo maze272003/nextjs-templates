@@ -4,8 +4,8 @@
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import Layout from '@/components/layout/Layout'; // Assuming this is your main layout
-import UserList from '@/components/UserList';
-import ChatBox from '@/components/ChatBox';
+import UserList from '@/components/chat/UserList';
+import ChatBox from '@/components/chat/ChatBox';
 import { io, Socket } from 'socket.io-client';
 
 // I-declare ang socket sa labas para mag-persist
@@ -24,6 +24,7 @@ interface SelectedUser {
     id: number;
     first_name: string;
     last_name: string;
+    profile_picture_url: string | null;
 }
 
 export default function ChatPage() {

@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(req: NextRequest) {
-  // Kunin ang user ID mula sa cookie na sinet natin kanina
+  // Get user ID from the cookie we set during login or OTP verification
   const userId = req.cookies.get('user_id')?.value;
 
   if (!userId) {
-    // Kung walang cookie, hindi siya naka-login
+    // If there's no cookie, the user is not logged in
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
 
-  // Kung may cookie, ibalik ang user ID
+  // If there is a cookie, return the user ID
   return NextResponse.json({ userId: userId }, { status: 200 });
 }

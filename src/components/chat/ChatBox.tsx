@@ -1,11 +1,10 @@
-// src/components/ChatBox.tsx
 'use client';
 
 import { useState, useEffect, FormEvent, useRef } from 'react';
 import { Socket } from 'socket.io-client';
-import { Send, MessageSquare } from 'lucide-react';
+import { Send, MessageSquare, ArrowLeft } from 'lucide-react';
 
-// Interfaces (No change needed here)
+// Interfaces for data shapes
 interface Message {
     id: number | string;
     content: string;
@@ -26,20 +25,20 @@ interface SelectedUser {
     profile_picture_url: string | null;
 }
 
+// Component props interface
 interface ChatBoxProps {
     socket: Socket;
     currentUser: Profile | null;
     selectedUser: SelectedUser | null;
+    onBack: () => void; // Function to go back to the user list on mobile
 }
 
-export default function ChatBox({ socket, currentUser, selectedUser }: ChatBoxProps) {
+export default function ChatBox({ socket, currentUser, selectedUser, onBack }: ChatBoxProps) {
     const [message, setMessage] = useState('');
     const [chatLog, setChatLog] = useState<Message[]>([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
     const chatEndRef = useRef<HTMLDivElement>(null);
 
-    // All useEffect and handleSubmit logic can remain the same
-    // ... (no changes needed in the logic part)
     useEffect(() => {
         const fetchHistory = async () => {
             if (!currentUser || !selectedUser) return;
@@ -56,13 +55,15 @@ export default function ChatBox({ socket, currentUser, selectedUser }: ChatBoxPr
         };
 
         if (selectedUser && currentUser) {
-            setChatLog([]);
+            setChatLog([]); // Clear previous chat
             socket.emit('join-private-room', currentUser.id, selectedUser.id);
             fetchHistory();
         }
 
         const handleNewMessage = (newMessageFromServer: Message) => {
             if (!currentUser || !selectedUser) return;
+            
+            // Logic for handling optimistic updates and incoming messages
             if (Number(newMessageFromServer.sender_id) === Number(currentUser.id)) {
                 setChatLog(prevLog => 
                     prevLog.map(msg => 
@@ -84,6 +85,7 @@ export default function ChatBox({ socket, currentUser, selectedUser }: ChatBoxPr
 
     }, [selectedUser, currentUser, socket]);
 
+    // Scroll to the bottom of the chat on new messages
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [chatLog]);
@@ -109,11 +111,10 @@ export default function ChatBox({ socket, currentUser, selectedUser }: ChatBoxPr
             setMessage('');
         }
     };
-    
 
     if (!selectedUser) {
         return (
-            <div className="flex flex-col items-center justify-center h-full text-gray-400 bg-white">
+            <div className="hidden md:flex flex-col items-center justify-center h-full text-gray-400 bg-white">
                 <MessageSquare size={64} className="mb-4" />
                 <h3 className="text-xl font-semibold">Select a conversation</h3>
                 <p className="text-sm">Choose someone from your contacts to start chatting.</p>
@@ -124,6 +125,9 @@ export default function ChatBox({ socket, currentUser, selectedUser }: ChatBoxPr
     return (
         <div className="flex flex-col h-full bg-white">
             <div className="p-4 border-b font-semibold text-gray-800 shadow-sm flex items-center space-x-3">
+                <button onClick={onBack} className="md:hidden p-1 -ml-1 text-gray-600 hover:text-gray-900">
+                    <ArrowLeft size={22} />
+                </button>
                 {selectedUser.profile_picture_url ? (
                     <img src={selectedUser.profile_picture_url} alt={selectedUser.first_name} className="w-8 h-8 rounded-full object-cover" />
                 ) : (
@@ -131,20 +135,15 @@ export default function ChatBox({ socket, currentUser, selectedUser }: ChatBoxPr
                         {selectedUser.first_name?.[0] || ''}
                     </div>
                 )}
-                <span>Chat with {selectedUser.first_name} {selectedUser.last_name}</span>
+                <span className="truncate">{selectedUser.first_name} {selectedUser.last_name}</span>
             </div>
             
             <div className="flex-grow p-4 overflow-y-auto bg-gray-50">
                 {loadingHistory ? <div className="text-center text-gray-500">Loading history...</div> : (
                     chatLog.map((msg, idx) => {
-                        // ================= THE ONLY FIX YOU NEED =================
-                        // FIX: Convert both IDs to Number before comparing them.
                         const isSender = Number(msg.sender_id) === Number(currentUser?.id);
-                        // =======================================================
-
                         return (
-                           <div key={`${msg.id}-${msg.created_at}-${idx}`} className={`flex items-end gap-2 mb-3 ${isSender ? 'justify-end' : 'justify-start'}`}>
-
+                            <div key={`${msg.id}-${idx}`} className={`flex items-end gap-2 mb-3 ${isSender ? 'justify-end' : 'justify-start'}`}>
                                 {!isSender && (
                                     <div className="flex-shrink-0">
                                         {msg.profile_picture_url ? (
@@ -162,7 +161,8 @@ export default function ChatBox({ socket, currentUser, selectedUser }: ChatBoxPr
                                     : 'bg-gray-200 text-black rounded-bl-none'
                                 }`}>
                                     {!isSender && <strong className="block text-xs text-blue-700 mb-1">{msg.username}</strong>}
-                                    <p className="text-sm">{msg.content}</p>
+                                    {/* THIS IS THE FIX: Added 'break-all' to the message paragraph */}
+                                    <p className="text-sm break-all">{msg.content}</p>
                                     <p className={`text-xs mt-1 text-right opacity-70 ${isSender ? 'text-blue-100' : 'text-gray-500'}`}>
                                         {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </p>

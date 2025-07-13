@@ -23,11 +23,13 @@ export interface SelectedUser {
 }
 
 export interface Message {
-  id: number | string;
-  content: string;
-  sender_id: number;
-  receiver_id?: number; // Optional, useful for backend
-  username: string;
-  created_at: string;
-  profile_picture_url: string | null;
+    id: number | string;
+    content: string | null; // Can be null for files
+    sender_id: number;
+    receiver_id?: number;
+    username: string;
+    created_at: string;
+    profile_picture_url: string | null;
+    message_type: 'text' | 'image' | 'video' | 'file'; // New type field
+    file_url: string | null; // New field for the file path
 }

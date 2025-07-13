@@ -1,16 +1,24 @@
+// src/app/api/auth/signup/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import bcrypt from 'bcrypt';
 import { sendEmail } from '@/lib/sendEmail';
 import crypto from 'crypto';
+import type { ResultSetHeader } from 'mysql2';
 
 export async function POST(req: NextRequest) {
   try {
-    const { firstName, lastName, email, password } = await req.json();
+    const { firstName, lastName, email, password }: {
+      firstName: string;
+      lastName: string;
+      email: string;
+      password: string;
+    } = await req.json();
 
     if (!firstName || !lastName || !email || !password) {
       return NextResponse.json({ message: 'All fields are required.' }, { status: 400 });
     }
+
     if (password.length < 6) {
       return NextResponse.json({ message: 'Password must be at least 6 characters.' }, { status: 400 });
     }
@@ -20,8 +28,11 @@ export async function POST(req: NextRequest) {
     const otpCreatedAt = new Date();
     const otpExpirationMinutes = parseInt(process.env.OTP_EXPIRATION_MINUTES || '10', 10);
 
-    const [result]: any = await pool.execute(
-      'INSERT INTO users (first_name, last_name, email, password, otp_secret, otp_created_at, is_verified) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    // 👇 Correctly type the result from pool.execute using ResultSetHeader
+    const [result] = await pool.execute<ResultSetHeader>(
+      `INSERT INTO users 
+      (first_name, last_name, email, password, otp_secret, otp_created_at, is_verified) 
+      VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [firstName, lastName, email, hashedPassword, otp, otpCreatedAt, false]
     );
 
@@ -41,12 +52,15 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json(
-      { message: 'User registered successfully. Please check your email for OTP to verify your account.', userId: result.insertId },
+      {
+        message: 'User registered successfully. Please check your email for OTP to verify your account.',
+        userId: result.insertId
+      },
       { status: 201 }
     );
 
-  } catch (error: any) {
-    if (error.code === 'ER_DUP_ENTRY') {
+  } catch (error: unknown) {
+    if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ER_DUP_ENTRY') {
       return NextResponse.json({ message: 'This email address is already in use.' }, { status: 409 });
     }
     console.error('Signup error:', error);

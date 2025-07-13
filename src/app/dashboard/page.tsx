@@ -4,16 +4,12 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import Link from 'next/link';
 import Layout, { useUser } from '@/components/layout/Layout';
+import Image from 'next/image'; // ✅ Use Next.js image optimization
 
-// --- NEW INNER COMPONENT ---
-// All the logic and JSX for the dashboard now lives inside this component.
-// It can safely call useUser() because it will be rendered inside the Layout.
 function DashboardContent() {
   const router = useRouter();
-  // This hook call is now safe.
   const { profile, loading, isAuthenticated } = useUser();
 
-  // This effect handles redirection if the user is not logged in.
   useEffect(() => {
     if (!loading && !isAuthenticated) {
       router.push('/login');
@@ -28,27 +24,28 @@ function DashboardContent() {
       console.error("Logout failed:", error);
     }
   };
-  
+
   const initials = profile ? `${profile.first_name?.[0] || ''}${profile.last_name?.[0] || ''}`.toUpperCase() : '';
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="text-center bg-white p-8 rounded-2xl shadow-lg w-full max-w-2xl space-y-6">
-        
         {loading ? (
           <div className="animate-pulse space-y-4">
-            <div className="w-28 h-28 bg-slate-200 rounded-full mx-auto"></div>
-            <div className="h-8 bg-slate-200 rounded w-1/2 mx-auto"></div>
-            <div className="h-4 bg-slate-200 rounded w-3/4 mx-auto"></div>
+            <div className="w-28 h-28 bg-slate-200 rounded-full mx-auto" />
+            <div className="h-8 bg-slate-200 rounded w-1/2 mx-auto" />
+            <div className="h-4 bg-slate-200 rounded w-3/4 mx-auto" />
           </div>
         ) : (
           <div className="space-y-4">
             <div className="mb-4">
               {profile?.profile_picture_url ? (
-                <img
+                <Image
                   src={profile.profile_picture_url}
                   alt="Profile Picture"
-                  className="w-28 h-28 rounded-full object-cover mx-auto border-4 border-white shadow-md"
+                  width={112}
+                  height={112}
+                  className="rounded-full object-cover mx-auto border-4 border-white shadow-md"
                 />
               ) : initials ? (
                 <div className="w-28 h-28 rounded-full bg-indigo-600 flex items-center justify-center text-white text-4xl font-bold mx-auto shadow-md">
@@ -65,7 +62,7 @@ function DashboardContent() {
                 Welcome, {profile?.first_name || 'User'}!
               </h1>
               <p className="text-md text-slate-500 max-w-md mx-auto">
-                {profile?.bio || "It looks like you're new here! Set up your profile to get started."}
+                {profile?.bio || "It looks like you&apos;re new here! Set up your profile to get started."}
               </p>
             </div>
           </div>
@@ -90,10 +87,6 @@ function DashboardContent() {
   );
 }
 
-
-// --- MAIN PAGE EXPORT ---
-// The default export is now a simple wrapper that renders the Layout
-// with the actual page content inside it.
 export default function DashboardPage() {
   return (
     <Layout>

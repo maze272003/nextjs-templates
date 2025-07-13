@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from "react";
+import Image from 'next/image';
 import UserListSkeleton from './UserListSkeleton';
 
 interface User {
@@ -27,24 +28,21 @@ export default function UserList({ onSelectUser, currentUserId, selectedUserId }
                 const response = await fetch('/api/users');
                 const data = await response.json();
 
-                // Check if the response has a 'users' property and it's an array
                 const usersArray = data && Array.isArray(data.users) ? data.users : (Array.isArray(data) ? data : []);
-
-                // Filter out the current user and then sort alphabetically
                 const sortedAndFilteredUsers = usersArray
                     .filter((user: User) => user.id !== currentUserId)
                     .sort((a: User, b: User) => a.first_name.localeCompare(b.first_name));
 
                 setUsers(sortedAndFilteredUsers);
-
             } catch (error) {
                 console.error("Failed to fetch users:", error);
-                setUsers([]); // Set to empty array on error
+                setUsers([]);
             } finally {
                 setLoading(false);
             }
         };
-        if(currentUserId) {
+
+        if (currentUserId) {
             fetchUsers();
         }
     }, [currentUserId]);
@@ -60,17 +58,20 @@ export default function UserList({ onSelectUser, currentUserId, selectedUserId }
                     const initials = `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`.toUpperCase();
 
                     return (
-                        <li key={user.id} 
+                        <li
+                            key={user.id}
                             onClick={() => onSelectUser(user)}
                             className={`flex items-center space-x-4 p-3 cursor-pointer transition-colors duration-200 ${
                                 isActive ? 'bg-blue-100' : 'hover:bg-gray-100'
                             }`}
                         >
                             {user.profile_picture_url ? (
-                                <img 
-                                    src={user.profile_picture_url} 
+                                <Image
+                                    src={user.profile_picture_url}
                                     alt={`${user.first_name} ${user.last_name}`}
-                                    className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                                    width={40}
+                                    height={40}
+                                    className="rounded-full object-cover flex-shrink-0"
                                 />
                             ) : (
                                 <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold flex-shrink-0">

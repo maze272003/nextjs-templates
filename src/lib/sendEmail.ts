@@ -1,4 +1,3 @@
-// src/lib/sendEmail.ts
 import nodemailer from 'nodemailer';
 
 interface EmailOptions {
@@ -8,40 +7,61 @@ interface EmailOptions {
   html: string;
 }
 
+// Type-safe custom error shape for nodemailer errors
+interface NodemailerError extends Error {
+  code?: string;
+}
+
+// Type guard to check if unknown error is a NodemailerError
+function isNodemailerError(err: unknown): err is NodemailerError {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'message' in err &&
+    'name' in err &&
+    typeof (err as Record<string, unknown>).message === 'string' &&
+    typeof (err as Record<string, unknown>).name === 'string'
+  );
+}
+
+// Configure transporter
 const transporter = nodemailer.createTransport({
-  service: 'gmail', // You can change this to 'outlook', 'yahoo', or define a custom host
+  service: 'gmail',
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
-  // Optional: For local development with self-signed certs or if you encounter issues
   tls: {
-    rejectUnauthorized: false
-  }
+    rejectUnauthorized: false,
+  },
 });
 
+// Exported email sending function
 export const sendEmail = async ({ to, subject, text, html }: EmailOptions) => {
   try {
     const mailOptions = {
-      from: process.env.EMAIL_USER, // Sender address
-      to, // List of recipients
-      subject, // Subject line
-      text, // Plain text body
-      html, // HTML body
+      from: process.env.EMAIL_USER,
+      to,
+      subject,
+      text,
+      html,
     };
 
     const info = await transporter.sendMail(mailOptions);
     console.log('Email sent: %s', info.messageId);
+
     return { success: true, messageId: info.messageId };
-  } catch (error) {
-    console.error('Error sending email:', error);
-    // Log more details about the error if needed
-    if (error instanceof Error) {
-      console.error('Error message:', error.message);
-      console.error('Error name:', error.name);
-      // @ts-ignore // Nodemailer specific error codes
-      if (error.code) console.error('Error code:', error.code);
+  } catch (err: unknown) {
+    console.error('Error sending email:', err);
+
+    if (isNodemailerError(err)) {
+      console.error('Error message:', err.message);
+      console.error('Error name:', err.name);
+      if (err.code) {
+        console.error('Error code:', err.code);
+      }
     }
+
     return { success: false, error: 'Failed to send email.' };
   }
 };

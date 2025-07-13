@@ -1,24 +1,23 @@
 // src/app/api/auth/logout/route.ts
 import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
 
-export async function POST(req: NextRequest) {
+export async function POST() {
   try {
     const response = NextResponse.json({ message: 'Logged out successfully' }, { status: 200 });
 
-    // Clear the 'isAuthenticated' cookie by setting its expiration to a past date
+    // Clear the 'isAuthenticated' cookie
     response.cookies.set('isAuthenticated', '', {
-      httpOnly: false, // Match the setting in login route for demonstration. For production, consider true.
+      httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
-      expires: new Date(0), // Set expiry to past date to delete it immediately
+      expires: new Date(0),
       path: '/',
     });
 
-    // Clear the 'user_id' cookie by setting its expiration to a past date
-    response.cookies.set('user_id', '', { // Make sure this cookie name matches what you set in login
-      httpOnly: false, // Match the setting in login route for demonstration. For production, consider true.
+    // Clear the 'user_id' cookie
+    response.cookies.set('user_id', '', {
+      httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
-      expires: new Date(0), // Set expiry to past date to delete it immediately
+      expires: new Date(0),
       path: '/',
     });
 

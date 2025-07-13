@@ -98,7 +98,7 @@ export default function VerifyOtpInner() {
         )}
 
         <p className="mt-4 text-center text-sm text-gray-600">
-          Didn't receive an OTP?{' '}
+          {"Didn't receive an OTP? "}
           <Link
             href={`/resend-otp?userId=${userId ?? ''}`}
             className="font-medium text-indigo-600 hover:text-indigo-500"

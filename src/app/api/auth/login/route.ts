@@ -1,18 +1,26 @@
 // src/app/api/auth/login/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import pool from '@/lib/db'; // Assuming '@/lib/db' correctly imports your database pool
+import pool from '@/lib/db';
 import bcrypt from 'bcrypt';
+import type { RowDataPacket } from 'mysql2';
+
+interface UserRow extends RowDataPacket {
+  id: number;
+  email: string;
+  password: string;
+  is_verified: number; // or boolean if casted
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, password } = await req.json();
+    const { email, password }: { email: string; password: string } = await req.json();
 
     if (!email || !password) {
       return NextResponse.json({ message: 'Email and password are required' }, { status: 400 });
     }
 
-    // Fetch user including the 'is_verified' status
-    const [rows]: any[] = await pool.execute(
+    // Correctly type and destructure the result from pool.execute
+    const [rows] = await pool.execute<UserRow[]>(
       'SELECT id, email, password, is_verified FROM users WHERE email = ?',
       [email]
     );
@@ -24,47 +32,36 @@ export async function POST(req: NextRequest) {
     }
 
     const passwordMatch = await bcrypt.compare(password, user.password);
-
     if (!passwordMatch) {
       return NextResponse.json({ message: 'Invalid credentials' }, { status: 401 });
     }
 
-    // --- 2FA Verification Check ---
-    // If the user's account is NOT verified, prevent login and redirect to OTP verification.
     if (!user.is_verified) {
-      // Do NOT set isAuthenticated or user_id cookies here.
-      // Inform the client that the account needs verification and provide redirect info.
       return NextResponse.json(
-        { 
+        {
           message: 'Account not verified. Please verify your email.',
-          redirectTo: `/verify-otp?userId=${user.id}` // Provide the userId for the client to use
+          redirectTo: `/verify-otp?userId=${user.id}`,
         },
-        { status: 403 } // 403 Forbidden - indicates the client does not have access for a valid reason (e.g., unverified)
+        { status: 403 }
       );
     }
 
-    // If we reach this point, the user exists, password matches, AND the account is verified.
-    // Proceed with setting authentication cookies.
     const response = NextResponse.json(
       { message: 'Login successful', user: { id: user.id, email: user.email } },
       { status: 200 }
     );
 
-    // Set the 'isAuthenticated' cookie
     response.cookies.set('isAuthenticated', 'true', {
-      httpOnly: false, // For demo, but true is recommended for security in production
+      httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
-      maxAge: 60 * 60, // 1 hour (adjust as needed)
+      maxAge: 60 * 60,
       path: '/',
     });
 
-    // Set the 'user_id' cookie
-    // IMPORTANT: For production, consider making user_id cookie httpOnly as well,
-    // or use a more robust session management system if directly accessing userId client-side is not strictly necessary.
     response.cookies.set('user_id', user.id.toString(), {
-      httpOnly: false, // For demo, but true is HIGHLY recommended for security in production
+      httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
-      maxAge: 60 * 60, // 1 hour (adjust as needed)
+      maxAge: 60 * 60,
       path: '/',
     });
 

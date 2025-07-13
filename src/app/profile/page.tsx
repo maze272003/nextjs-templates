@@ -3,17 +3,13 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import Layout, { useUser } from '@/components/layout/Layout';
 
-// --- NEW INNER COMPONENT ---
-// Contains all the state, logic, and JSX for the profile page.
-// It can safely call useUser() because it's a child of the Layout's provider.
 function ProfileContent() {
   const router = useRouter();
-  // This hook call is now safe and will receive the context data.
   const { profile, loading, isAuthenticated } = useUser();
 
-  // Local state for managing the form fields and UI.
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [bio, setBio] = useState('');
@@ -23,14 +19,12 @@ function ProfileContent() {
   const [isError, setIsError] = useState(false);
   const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
 
-  // Effect to redirect the user if they are not authenticated.
   useEffect(() => {
     if (!loading && !isAuthenticated) {
       router.push('/login');
     }
   }, [loading, isAuthenticated, router]);
 
-  // Effect to populate the form fields once the profile data is available.
   useEffect(() => {
     if (profile) {
       setFirstName(profile.first_name || '');
@@ -44,6 +38,7 @@ function ProfileContent() {
     e.preventDefault();
     setMessage('');
     setIsError(false);
+
     if (!profile?.id) {
       setMessage('User not identified. Cannot update profile.');
       setIsError(true);
@@ -93,9 +88,8 @@ function ProfileContent() {
     }
   };
 
-  const getInitials = (first: string, last: string) => {
-    return `${first?.[0] || ''}${last?.[0] || ''}`.toUpperCase();
-  };
+  const getInitials = (first: string, last: string) =>
+    `${first?.[0] || ''}${last?.[0] || ''}`.toUpperCase();
 
   const openImageViewer = () => {
     if (profilePictureUrl) {
@@ -108,7 +102,7 @@ function ProfileContent() {
     setIsImageViewerOpen(false);
     document.body.style.overflow = '';
   };
-  
+
   const initials = getInitials(firstName, lastName);
 
   return (
@@ -120,10 +114,12 @@ function ProfileContent() {
           {loading ? (
             <div className="w-32 h-32 bg-slate-200 rounded-full animate-pulse"></div>
           ) : profilePictureUrl ? (
-            <img
+            <Image
               src={profilePictureUrl}
               alt="Profile Picture"
-              className="w-32 h-32 rounded-full object-cover border-4 border-indigo-200 shadow-md cursor-pointer transition-transform duration-200 hover:scale-105"
+              width={128}
+              height={128}
+              className="rounded-full object-cover border-4 border-indigo-200 shadow-md cursor-pointer transition-transform duration-200 hover:scale-105"
               onClick={openImageViewer}
             />
           ) : initials ? (
@@ -139,33 +135,53 @@ function ProfileContent() {
 
         <form onSubmit={handleSubmit} id="profile-form" className="space-y-6">
           <div>
-            <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">First Name:</label>
+            <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">
+              First Name:
+            </label>
             <input
-              type="text" id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)}
+              type="text"
+              id="firstName"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
               disabled={loading}
             />
           </div>
           <div>
-            <label htmlFor="lastName" className="block text-sm font-medium text-gray-700">Last Name:</label>
+            <label htmlFor="lastName" className="block text-sm font-medium text-gray-700">
+              Last Name:
+            </label>
             <input
-              type="text" id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)}
+              type="text"
+              id="lastName"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
               disabled={loading}
             />
           </div>
           <div>
-            <label htmlFor="bio" className="block text-sm font-medium text-gray-700">Bio:</label>
+            <label htmlFor="bio" className="block text-sm font-medium text-gray-700">
+              Bio:
+            </label>
             <textarea
-              id="bio" value={bio} onChange={(e) => setBio(e.target.value)} rows={4}
+              id="bio"
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              rows={4}
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
               disabled={loading}
             ></textarea>
           </div>
           <div>
-            <label htmlFor="profilePicture" className="block text-sm font-medium text-gray-700">Profile Picture:</label>
+            <label htmlFor="profilePicture" className="block text-sm font-medium text-gray-700">
+              Profile Picture:
+            </label>
             <input
-              type="file" id="profilePicture" accept="image/*" onChange={(e) => setProfilePicture(e.target.files ? e.target.files[0] : null)}
+              type="file"
+              id="profilePicture"
+              accept="image/*"
+              onChange={(e) => setProfilePicture(e.target.files ? e.target.files[0] : null)}
               className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
               disabled={loading}
             />
@@ -219,9 +235,11 @@ function ProfileContent() {
           >
             &times;
           </button>
-          <img
+          <Image
             src={profilePictureUrl}
             alt="Profile Picture Full View"
+            width={800}
+            height={800}
             className="max-w-full max-h-full object-contain cursor-zoom-out"
             onClick={(e) => e.stopPropagation()}
           />
@@ -231,9 +249,6 @@ function ProfileContent() {
   );
 }
 
-
-// --- MAIN PAGE EXPORT ---
-// The default export is now a simple wrapper component.
 export default function ProfilePage() {
   return (
     <Layout>

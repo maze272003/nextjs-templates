@@ -3,11 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    
-    
     "dev": "ts-node-dev --respawn --transpile-only --ignore-watch .next server.ts",
-    "start": "NODE_ENV=production node dist/server.js",
-    "lint": "next lint"
+    "start": "NODE_ENV=production node dist/server.js ",
+    "lint": "next lint",
+    "build": "next build"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
@@ -28,6 +27,7 @@
     "@types/bcrypt": "^5.0.2",
     "@types/formidable": "^3.4.5",
     "@types/node": "^20.19.7",
+    "@types/nodemailer": "^6.4.17",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

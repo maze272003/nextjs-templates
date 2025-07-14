@@ -1,4 +1,5 @@
 import db from '@/lib/db';
+import { OkPacket, RowDataPacket } from 'mysql2';
 
 interface CreateMessageData {
   content: string | null;
@@ -8,7 +9,7 @@ interface CreateMessageData {
   fileUrl?: string | null;
 }
 
-interface SavedMessage {
+interface SavedMessage extends RowDataPacket {
   id: number;
   content: string | null;
   created_at: string;
@@ -28,7 +29,7 @@ export async function createMessageInDb({
   fileUrl = null,
 }: CreateMessageData): Promise<SavedMessage> {
   try {
-    const [insertResult]: any = await db.query(
+    const [insertResult] = await db.query<OkPacket>(
       `INSERT INTO messages (content, sender_id, receiver_id, message_type, file_url)
        VALUES (?, ?, ?, ?, ?)`,
       [content, senderId, receiverId, messageType, fileUrl]
@@ -37,7 +38,7 @@ export async function createMessageInDb({
     const newMessageId = insertResult.insertId;
     if (!newMessageId) throw new Error('Failed to insert message.');
 
-    const [rows]: any = await db.query(
+    const [rows] = await db.query<SavedMessage[]>(
       `SELECT
          m.id, m.content, m.created_at, m.sender_id, m.receiver_id, m.message_type, m.file_url,
          u.first_name as username, u.profile_picture_url
@@ -47,11 +48,11 @@ export async function createMessageInDb({
       [newMessageId]
     );
 
-    const savedMessage = rows[0] as SavedMessage;
+    const savedMessage = rows[0];
     if (!savedMessage) throw new Error('Message not found after insert.');
 
     return savedMessage;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Database operation failed:', error);
     throw error;
   }

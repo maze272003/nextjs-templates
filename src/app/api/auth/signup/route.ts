@@ -1,4 +1,3 @@
-// src/app/api/auth/signup/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import bcrypt from 'bcrypt';
@@ -33,8 +32,6 @@ export async function POST(req: NextRequest) {
     const otpCreatedAt = new Date();
     const otpExpirationMinutes = parseInt(process.env.OTP_EXPIRATION_MINUTES || '10', 10);
 
-    // ✅ Use MySQL-style placeholder `?`
-    // ✅ Cast result to OkPacket to access insertId
     const [result] = await pool.query<OkPacket>(
       `INSERT INTO users 
        (first_name, last_name, email, password, otp_secret, otp_created_at, is_verified) 
@@ -66,9 +63,18 @@ export async function POST(req: NextRequest) {
       },
       { status: 201 }
     );
-  } catch (error: any) {
-    if (error.code === 'ER_DUP_ENTRY') {
-      return NextResponse.json({ message: 'This email address is already in use.' }, { status: 409 });
+  } catch (error: unknown) {
+    // Use proper error type narrowing
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      typeof (error as { code: unknown }).code === 'string'
+    ) {
+      const dbError = error as { code: string };
+      if (dbError.code === 'ER_DUP_ENTRY') {
+        return NextResponse.json({ message: 'This email address is already in use.' }, { status: 409 });
+      }
     }
 
     console.error('Signup error:', error);

@@ -91,8 +91,13 @@ export async function PUT(req: NextRequest) {
         const oldPicturePath = path.join(process.cwd(), 'public', oldProfileUrl);
         try {
           await fs.unlink(oldPicturePath);
-        } catch (unlinkError: any) {
-          if (unlinkError.code !== 'ENOENT') {
+        } catch (unlinkError: unknown) {
+          if (
+            unlinkError &&
+            typeof unlinkError === 'object' &&
+            'code' in unlinkError &&
+            (unlinkError as { code: string }).code !== 'ENOENT'
+          ) {
             console.warn('Could not delete old profile picture:', unlinkError);
           }
         }

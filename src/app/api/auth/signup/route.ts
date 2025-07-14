@@ -4,10 +4,16 @@ import pool from '@/lib/db';
 import bcrypt from 'bcrypt';
 import { sendEmail } from '@/lib/sendEmail';
 import crypto from 'crypto';
+import { OkPacket } from 'mysql2';
 
 export async function POST(req: NextRequest) {
   try {
-    const { firstName, lastName, email, password }: {
+    const {
+      firstName,
+      lastName,
+      email,
+      password,
+    }: {
       firstName: string;
       lastName: string;
       email: string;
@@ -27,20 +33,20 @@ export async function POST(req: NextRequest) {
     const otpCreatedAt = new Date();
     const otpExpirationMinutes = parseInt(process.env.OTP_EXPIRATION_MINUTES || '10', 10);
 
-    // Use pool.query with PostgreSQL placeholders ($1, $2, etc.)
-    // Added 'RETURNING id' to get the new user's ID back
-    const result = await pool.query(
+    // ✅ Use MySQL-style placeholder `?`
+    // ✅ Cast result to OkPacket to access insertId
+    const [result] = await pool.query<OkPacket>(
       `INSERT INTO users 
        (first_name, last_name, email, password, otp_secret, otp_created_at, is_verified) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id`,
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [firstName, lastName, email, hashedPassword, otp, otpCreatedAt, false]
     );
 
-    // Check rowCount instead of affectedRows
-    if (result.rowCount === 0) {
+    if (result.affectedRows === 0) {
       return NextResponse.json({ message: 'Failed to register user.' }, { status: 500 });
     }
+
+    const userId = result.insertId;
 
     const emailSubject = 'Your OTP for Account Verification';
     const emailText = `Your One-Time Password (OTP) is: ${otp}. It is valid for ${otpExpirationMinutes} minutes.`;
@@ -53,22 +59,18 @@ export async function POST(req: NextRequest) {
       html: emailHtml,
     });
 
-    // Get the new userId from the 'rows' property
-    const userId = result.rows[0].id;
-
     return NextResponse.json(
       {
         message: 'User registered successfully. Please check your email for OTP to verify your account.',
-        userId: userId
+        userId,
       },
       { status: 201 }
     );
-
-  } catch (error: unknown) {
-    // Check for PostgreSQL's unique violation error code '23505'
-    if (typeof error === 'object' && error !== null && 'code' in error && error.code === '23505') {
+  } catch (error: any) {
+    if (error.code === 'ER_DUP_ENTRY') {
       return NextResponse.json({ message: 'This email address is already in use.' }, { status: 409 });
     }
+
     console.error('Signup error:', error);
     return NextResponse.json({ message: 'An internal server error occurred.' }, { status: 500 });
   }

@@ -1,9 +1,10 @@
 // src/app/api/auth/verify-otp/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { RowDataPacket } from 'mysql2';
 
-// Clean interface for PostgreSQL user data
-interface UserRow {
+// ✅ Correct interface: must extend RowDataPacket
+interface UserRow extends RowDataPacket {
   otp_secret: string;
   otp_created_at: Date;
   is_verified: boolean;
@@ -17,15 +18,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'User ID and OTP are required.' }, { status: 400 });
     }
 
-    // Use pool.query with $1 placeholder and { rows } destructuring
-    const { rows } = await pool.query<UserRow>(
-      'SELECT otp_secret, otp_created_at, is_verified FROM users WHERE id = $1',
+    // ✅ Use MySQL-style destructuring: [rows]
+    const [rows] = await pool.query<UserRow[]>(
+      'SELECT otp_secret, otp_created_at, is_verified FROM users WHERE id = ?',
       [userId]
     );
 
     const user = rows[0];
-    if (!user) return NextResponse.json({ message: 'User not found.' }, { status: 404 });
-    if (user.is_verified) return NextResponse.json({ message: 'Account is already verified.' }, { status: 400 });
+    if (!user) {
+      return NextResponse.json({ message: 'User not found.' }, { status: 404 });
+    }
+
+    if (user.is_verified) {
+      return NextResponse.json({ message: 'Account is already verified.' }, { status: 400 });
+    }
 
     const otpAgeMs = Date.now() - new Date(user.otp_created_at).getTime();
     const expired = otpAgeMs > (parseInt(process.env.OTP_EXPIRATION_MINUTES || '10') * 60 * 1000);
@@ -34,12 +40,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Invalid or expired OTP.' }, { status: 400 });
     }
 
-    // Use pool.query for the UPDATE statement as well
-    await pool.query('UPDATE users SET is_verified = TRUE, otp_secret = NULL, otp_created_at = NULL WHERE id = $1', [userId]);
+    await pool.query(
+      'UPDATE users SET is_verified = TRUE, otp_secret = NULL, otp_created_at = NULL WHERE id = ?',
+      [userId]
+    );
 
-    const response = NextResponse.json({ message: 'Account verified successfully!', success: true }, { status: 200 });
+    const response = NextResponse.json(
+      { message: 'Account verified successfully!', success: true },
+      { status: 200 }
+    );
 
-    // This cookie logic remains the same
+    // ✅ Set cookies
     response.cookies.set('isAuthenticated', 'true', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

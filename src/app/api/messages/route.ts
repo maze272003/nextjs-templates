@@ -1,20 +1,11 @@
-// src/app/api/messages/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
-import { RowDataPacket, ResultSetHeader } from 'mysql2';
+import { createMessageInDb } from '@/lib/message-actions';
 
-interface MessageRow extends RowDataPacket {
-  id: number;
-  content: string;
-  created_at: string;
-  sender_id: number;
-  message_type: string;
-  file_url: string | null;
-  username: string;
-  profile_picture_url: string;
-}
+// ... (your MessageRow interface can remain here if you want)
 
 export async function GET(request: NextRequest) {
+  // GET logic remains the same...
   const { searchParams } = new URL(request.url);
   const userId1 = searchParams.get('userId1');
   const userId2 = searchParams.get('userId2');
@@ -26,14 +17,14 @@ export async function GET(request: NextRequest) {
   try {
     const query = `
       SELECT 
-        m.id, m.content, m.created_at, m.sender_id, m.message_type, m.file_url,
+        m.id, m.content, m.created_at, m.sender_id, m.receiver_id, m.message_type, m.file_url,
         u.first_name as username, u.profile_picture_url
       FROM messages m
       JOIN users u ON m.sender_id = u.id
-      WHERE (m.sender_id = ? AND m.receiver_id = ?) OR (m.sender_id = ? AND m.receiver_id = ?)
+      WHERE (m.sender_id = $1 AND m.receiver_id = $2) OR (m.sender_id = $3 AND m.receiver_id = $4)
       ORDER BY m.created_at ASC
     `;
-    const [messages] = await db.query<MessageRow[]>(query, [userId1, userId2, userId2, userId1]);
+    const { rows: messages } = await db.query(query, [userId1, userId2, userId2, userId1]);
     return NextResponse.json(messages);
   } catch (error) {
     console.error('API Error fetching messages:', error);
@@ -43,46 +34,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: Request) {
   try {
-    const { content, senderId, receiverId, messageType = 'text', fileUrl = null } = await request.json();
+    const body = await request.json();
+    
+    // Call the reusable function to handle the database logic
+    const savedMessage = await createMessageInDb(body);
 
-    if ((!content && !fileUrl) || !senderId || !receiverId) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
-    }
-
-    const connection = await db.getConnection();
-
-    try {
-      await connection.beginTransaction();
-
-      const insertQuery = `
-        INSERT INTO messages (content, sender_id, receiver_id, message_type, file_url) 
-        VALUES (?, ?, ?, ?, ?)
-      `;
-      const [insertResult] = await connection.query<ResultSetHeader>(insertQuery, [content, senderId, receiverId, messageType, fileUrl]);
-
-      if (insertResult.affectedRows === 0) {
-        await connection.rollback();
-        return NextResponse.json({ error: 'Failed to create message' }, { status: 500 });
-      }
-
-      const selectQuery = `
-        SELECT 
-          m.id, m.content, m.created_at, m.sender_id, m.message_type, m.file_url,
-          u.first_name as username, u.profile_picture_url
-        FROM messages m
-        JOIN users u ON m.sender_id = u.id
-        WHERE m.id = ?
-      `;
-      const [newMessages] = await connection.query<MessageRow[]>(selectQuery, [insertResult.insertId]);
-
-      await connection.commit();
-      return NextResponse.json(newMessages[0]);
-    } catch (err) {
-      await connection.rollback();
-      throw err;
-    } finally {
-      connection.release();
-    }
+    return NextResponse.json(savedMessage);
   } catch (error) {
     console.error('API Error saving message:', error);
     return NextResponse.json({ error: 'Failed to save message' }, { status: 500 });

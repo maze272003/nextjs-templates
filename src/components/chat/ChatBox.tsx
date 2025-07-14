@@ -71,17 +71,19 @@ export default function ChatBox({ socket, currentUser, selectedUser, onBack }: C
     const handleNewMessage = (newMessageFromServer: Message) => {
       if (!currentUser || !selectedUser) return;
 
+      // Logic to replace the optimistic message with the real one from the server
       if (Number(newMessageFromServer.sender_id) === Number(currentUser.id)) {
         setChatLog(prevLog =>
           prevLog.map(msg =>
             (msg.isOptimistic &&
               (msg.content === newMessageFromServer.content ||
                 (msg.localFileUrl && newMessageFromServer.file_url)))
-              ? newMessageFromServer
-              : msg
+            ? newMessageFromServer
+            : msg
           )
         );
       } else if (Number(newMessageFromServer.sender_id) === Number(selectedUser.id)) {
+        // Add incoming message from the other user
         setChatLog(prevLog => [...prevLog, newMessageFromServer]);
       }
     };
@@ -161,9 +163,11 @@ export default function ChatBox({ socket, currentUser, selectedUser, onBack }: C
 
       const savedMessage: Message = await response.json();
       socket.emit('private-file-message', savedMessage);
+      // Replace the optimistic message with the final one from the server
       setChatLog(prev => prev.map(m => m.id === tempId ? savedMessage : m));
     } catch (error) {
       console.error("File upload failed:", error);
+      // Mark the upload as failed in the UI
       setChatLog(prev => prev.map(m => m.id === tempId ? { ...m, uploadProgress: 'failed' } : m));
     }
 
@@ -204,6 +208,7 @@ export default function ChatBox({ socket, currentUser, selectedUser, onBack }: C
         <span className="truncate">{selectedUser?.first_name} {selectedUser?.last_name}</span>
       </div>
 
+      {/* Chat Log */}
       <div className="flex-grow p-4 overflow-y-auto bg-gray-50">
         {loadingHistory ? (
           <div className="text-center text-gray-500">Loading history...</div>
@@ -238,6 +243,7 @@ export default function ChatBox({ socket, currentUser, selectedUser, onBack }: C
                 <div className={`p-3 rounded-2xl max-w-[70%] ${isSender ? 'bg-blue-600 text-white rounded-br-none' : 'bg-gray-200 text-black rounded-bl-none'}`}>
                   {!isSender && <strong className="block text-xs text-blue-700 mb-1">{msg.username}</strong>}
 
+                  {/* Image Message */}
                   {msg.message_type === 'image' && (
                     <div className="relative">
                       <Image
@@ -260,6 +266,7 @@ export default function ChatBox({ socket, currentUser, selectedUser, onBack }: C
                     </div>
                   )}
 
+                  {/* File Message */}
                   {msg.message_type === 'file' && msg.file_url && (
                     <a href={msg.file_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-black bg-opacity-20 p-2 rounded-lg hover:bg-opacity-30">
                       <FileIcon className="w-6 h-6 flex-shrink-0" />
@@ -267,6 +274,7 @@ export default function ChatBox({ socket, currentUser, selectedUser, onBack }: C
                     </a>
                   )}
 
+                  {/* Text Message */}
                   {msg.message_type === 'text' && (
                     <p className="text-sm break-all">{msg.content}</p>
                   )}
@@ -282,6 +290,7 @@ export default function ChatBox({ socket, currentUser, selectedUser, onBack }: C
         <div ref={chatEndRef} />
       </div>
 
+      {/* Input Form */}
       <form onSubmit={handleTextSubmit} className="p-3 border-t flex items-center bg-white gap-3">
         <input
           type="file"

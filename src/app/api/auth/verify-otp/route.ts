@@ -1,9 +1,9 @@
 // src/app/api/auth/verify-otp/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
-import { RowDataPacket } from 'mysql2';
 
-interface UserRow extends RowDataPacket {
+// Clean interface for PostgreSQL user data
+interface UserRow {
   otp_secret: string;
   otp_created_at: Date;
   is_verified: boolean;
@@ -17,8 +17,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'User ID and OTP are required.' }, { status: 400 });
     }
 
-    const [rows] = await pool.execute<UserRow[]>(
-      'SELECT otp_secret, otp_created_at, is_verified FROM users WHERE id = ?',
+    // Use pool.query with $1 placeholder and { rows } destructuring
+    const { rows } = await pool.query<UserRow>(
+      'SELECT otp_secret, otp_created_at, is_verified FROM users WHERE id = $1',
       [userId]
     );
 
@@ -33,10 +34,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Invalid or expired OTP.' }, { status: 400 });
     }
 
-    await pool.execute('UPDATE users SET is_verified = TRUE, otp_secret = NULL, otp_created_at = NULL WHERE id = ?', [userId]);
+    // Use pool.query for the UPDATE statement as well
+    await pool.query('UPDATE users SET is_verified = TRUE, otp_secret = NULL, otp_created_at = NULL WHERE id = $1', [userId]);
 
     const response = NextResponse.json({ message: 'Account verified successfully!', success: true }, { status: 200 });
 
+    // This cookie logic remains the same
     response.cookies.set('isAuthenticated', 'true', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

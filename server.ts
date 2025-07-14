@@ -10,22 +10,24 @@ const port = 3000;
 const app = next({ dev, hostname, port, dir: '.' });
 const handle = app.getRequestHandler();
 
-// Nag-iimbak ng online users: { userId: socketId }
+// Stores online users: { userId: socketId }
 const onlineUsers: Record<string, string> = {};
 
+// Interface for a new text message payload from the client
 interface MessagePayload {
     content?: string;
     senderId: number;
     receiverId: number;
 }
 
-// Interface for the complete message object returned by our API
+// Interface for the complete message object returned by the API
+// This object is used for broadcasting to ensure clients have all needed info.
 interface SavedMessage {
     id: number;
     content: string | null;
     created_at: string;
     sender_id: number;
-    receiver_id: number; // <-- FIX: Add this property
+    receiver_id: number;
     message_type: 'text' | 'image' | 'video' | 'file';
     file_url: string | null;
     username: string;
@@ -50,8 +52,7 @@ app.prepare().then(() => {
     io.on('connection', (socket) => {
         console.log('🔌 New client connected:', socket.id);
 
-        // ... (user-connected and join-private-room events remain the same)
-
+        // Map userId to socket.id when a user connects
         socket.on('user-connected', (userId: number) => {
             console.log(`User ${userId} registered with socket ${socket.id}`);
             if (userId) {
@@ -59,17 +60,19 @@ app.prepare().then(() => {
             }
         });
 
+        // Join a private room based on the two user IDs
         socket.on('join-private-room', (userId1: number, userId2: number) => {
             const roomName = [userId1, userId2].sort().join('-');
             socket.join(roomName);
             console.log(`Socket ${socket.id} joined room ${roomName}`);
         });
 
-        // 3. Magpadala ng TEXT private message
+        // Handler for TEXT messages
         socket.on('private-message', async (data: MessagePayload) => {
             const { content, senderId, receiverId } = data;
             
             try {
+                // Persist the message to the database by calling our own API
                 const response = await fetch(`http://${hostname}:${port}/api/messages`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -81,28 +84,29 @@ app.prepare().then(() => {
                     throw new Error(`API request failed: ${response.status} - ${errorBody}`);
                 }
 
-                const savedMessageWithDetails: SavedMessage = await response.json();
+                const savedMessage: SavedMessage = await response.json();
                 const roomName = [senderId, receiverId].sort().join('-');
                 
-                io.to(roomName).emit('new-private-message', savedMessageWithDetails);
-                console.log(`Message broadcasted to room ${roomName}:`, savedMessageWithDetails);
+                // Broadcast the final, saved message to all clients in the room
+                io.to(roomName).emit('new-private-message', savedMessage);
+                console.log(`Message broadcasted to room ${roomName}:`, savedMessage);
 
             } catch (error) {
                 console.error("Failed to save or broadcast text message:", error);
             }
         });
 
-        // 4. Magpadala ng FILE private message
+        // Handler for FILE messages
         socket.on('private-file-message', (savedMessage: SavedMessage) => {
-            // This check is now valid because receiver_id exists on the type
+            // This event is triggered by the client AFTER a successful file upload
             if (!savedMessage || !savedMessage.sender_id || !savedMessage.receiver_id) {
-                 console.error("Invalid file message payload received");
+                 console.error("Invalid file message payload received", savedMessage);
                  return;
             }
             
-            // This line will no longer cause an error
             const roomName = [savedMessage.sender_id, savedMessage.receiver_id].sort().join('-');
             
+            // Broadcast the file message to all clients in the room
             io.to(roomName).emit('new-private-message', savedMessage);
             console.log(`File Message broadcasted to room ${roomName}:`, savedMessage);
         });
@@ -121,7 +125,10 @@ app.prepare().then(() => {
 
     httpServer.listen(port, () => {
         console.log(`> Ready on http://${hostname}:${port}`);
+    }).on('error', (err) => {
+        throw err;
     });
+
 }).catch((err) => {
     console.error('Error during Next.js preparation:', err);
     process.exit(1);

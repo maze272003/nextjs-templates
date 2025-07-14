@@ -4,7 +4,6 @@ import pool from '@/lib/db';
 import bcrypt from 'bcrypt';
 import { sendEmail } from '@/lib/sendEmail';
 import crypto from 'crypto';
-import type { ResultSetHeader } from 'mysql2';
 
 export async function POST(req: NextRequest) {
   try {
@@ -28,15 +27,18 @@ export async function POST(req: NextRequest) {
     const otpCreatedAt = new Date();
     const otpExpirationMinutes = parseInt(process.env.OTP_EXPIRATION_MINUTES || '10', 10);
 
-    // 👇 Correctly type the result from pool.execute using ResultSetHeader
-    const [result] = await pool.execute<ResultSetHeader>(
+    // Use pool.query with PostgreSQL placeholders ($1, $2, etc.)
+    // Added 'RETURNING id' to get the new user's ID back
+    const result = await pool.query(
       `INSERT INTO users 
-      (first_name, last_name, email, password, otp_secret, otp_created_at, is_verified) 
-      VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       (first_name, last_name, email, password, otp_secret, otp_created_at, is_verified) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id`,
       [firstName, lastName, email, hashedPassword, otp, otpCreatedAt, false]
     );
 
-    if (result.affectedRows === 0) {
+    // Check rowCount instead of affectedRows
+    if (result.rowCount === 0) {
       return NextResponse.json({ message: 'Failed to register user.' }, { status: 500 });
     }
 
@@ -51,16 +53,20 @@ export async function POST(req: NextRequest) {
       html: emailHtml,
     });
 
+    // Get the new userId from the 'rows' property
+    const userId = result.rows[0].id;
+
     return NextResponse.json(
       {
         message: 'User registered successfully. Please check your email for OTP to verify your account.',
-        userId: result.insertId
+        userId: userId
       },
       { status: 201 }
     );
 
   } catch (error: unknown) {
-    if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ER_DUP_ENTRY') {
+    // Check for PostgreSQL's unique violation error code '23505'
+    if (typeof error === 'object' && error !== null && 'code' in error && error.code === '23505') {
       return NextResponse.json({ message: 'This email address is already in use.' }, { status: 409 });
     }
     console.error('Signup error:', error);

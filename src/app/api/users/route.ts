@@ -4,9 +4,8 @@ import db from '@/lib/db';
 
 export async function GET() {
   try {
-    // FIX: Add profile_picture_url to the SELECT statement.
-    // Make sure your 'users' table has a column named 'profile_picture_url'.
-    const [rows] = await db.query(
+    // The result from 'pg' is an object, so we destructure { rows }
+    const { rows } = await db.query(
       'SELECT id, first_name, last_name, profile_picture_url FROM users'
     );
     

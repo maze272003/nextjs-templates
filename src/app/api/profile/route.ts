@@ -1,15 +1,11 @@
+// src/app/api/profile/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import path from 'path';
 import fs from 'fs/promises';
 import { existsSync } from 'fs';
-import { RowDataPacket } from 'mysql2';
+import { QueryResult } from 'pg';
 
-// Remove unused imports to fix ESLint errors
-// Removed: IncomingForm
-// Removed: parseFormData
-
-// Ensure uploads directory exists
 const UPLOAD_DIR = path.join(process.cwd(), 'public/uploads/profile_pictures');
 
 async function ensureUploadDir() {
@@ -18,7 +14,7 @@ async function ensureUploadDir() {
   }
 }
 
-interface UserProfile extends RowDataPacket {
+interface UserProfile {
   id: number;
   email: string;
   first_name: string;
@@ -27,7 +23,6 @@ interface UserProfile extends RowDataPacket {
   profile_picture_url: string | null;
 }
 
-// GET /api/profile
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const userId = url.searchParams.get('userId');
@@ -37,12 +32,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [rows] = await pool.execute<UserProfile[]>(
-      'SELECT id, email, first_name, last_name, bio, profile_picture_url FROM users WHERE id = ?',
+    const result: QueryResult<UserProfile> = await pool.query(
+      'SELECT id, email, first_name, last_name, bio, profile_picture_url FROM users WHERE id = $1',
       [userId]
     );
 
-    const user = rows[0];
+    const user = result.rows[0];
     if (!user) {
       return NextResponse.json({ message: 'User profile not found' }, { status: 404 });
     }
@@ -54,12 +49,12 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// PUT /api/profile
 export async function PUT(req: NextRequest) {
   await ensureUploadDir();
 
   const url = new URL(req.url);
-  const userId = url.searchParams.get('userId');
+  // FIX: Changed search_params to searchParams
+  const userId = url.searchParams.get('userId'); 
 
   if (!userId) {
     return NextResponse.json({ message: "User ID missing for profile update." }, { status: 400 });
@@ -67,76 +62,67 @@ export async function PUT(req: NextRequest) {
 
   try {
     const formData = await req.formData();
-
-    const first_name = formData.get('first_name') as string | null;
-    const last_name = formData.get('last_name') as string | null;
-    const bio = formData.get('bio') as string | null;
-    const profilePictureFile = formData.get('profilePicture') as File | null;
-
     let profile_picture_url: string | null = null;
-
+    const updateValues: (string | null)[] = [];
+    const updateFields: string[] = [];
+    
+    const profilePictureFile = formData.get('profilePicture') as File | null;
     if (profilePictureFile && profilePictureFile.size > 0) {
-      const originalFileName = profilePictureFile.name;
-      const fileExtension = path.extname(originalFileName);
-      const newFileName = `${userId}_${Date.now()}${fileExtension}`;
-      const filePath = path.join(UPLOAD_DIR, newFileName);
-
-      const buffer = Buffer.from(await profilePictureFile.arrayBuffer());
-      await fs.writeFile(filePath, buffer);
-
-      profile_picture_url = `/uploads/profile_pictures/${newFileName}`;
-
-      // Delete old profile picture
-      const [oldProfileRows] = await pool.execute<UserProfile[]>(
-        'SELECT profile_picture_url FROM users WHERE id = ?',
+      const oldProfileResult = await pool.query<{ profile_picture_url: string }>(
+        'SELECT profile_picture_url FROM users WHERE id = $1',
         [userId]
       );
+      const oldProfileUrl = oldProfileResult.rows[0]?.profile_picture_url;
 
-      const oldProfileUrl = oldProfileRows[0]?.profile_picture_url;
+      const newFileName = `${userId}_${Date.now()}${path.extname(profilePictureFile.name)}`;
+      const filePath = path.join(UPLOAD_DIR, newFileName);
+      const buffer = Buffer.from(await profilePictureFile.arrayBuffer());
+      await fs.writeFile(filePath, buffer);
+      profile_picture_url = `/uploads/profile_pictures/${newFileName}`;
+
       if (oldProfileUrl && oldProfileUrl.startsWith('/uploads')) {
         const oldPicturePath = path.join(process.cwd(), 'public', oldProfileUrl);
         try {
           await fs.unlink(oldPicturePath);
         } catch (unlinkError: unknown) {
-  if (
-    unlinkError &&
-    typeof unlinkError === 'object' &&
-    'code' in unlinkError &&
-    (unlinkError as { code: string }).code !== 'ENOENT'
-  ) {
-    console.warn('Could not delete old profile picture:', unlinkError);
-  }
-}
-
+          if (
+            unlinkError &&
+            typeof unlinkError === 'object' &&
+            'code' in unlinkError &&
+            (unlinkError as { code: string }).code !== 'ENOENT'
+          ) {
+            console.warn('Could not delete old profile picture:', unlinkError);
+          }
+        }
       }
     }
 
-    const updateFields: string[] = [];
-    const updateValues: (string | null)[] = [];
-
-    if (first_name !== null) {
-      updateFields.push('first_name = ?');
-      updateValues.push(first_name);
+    const formFields = {
+        first_name: formData.get('first_name') as string | null,
+        last_name: formData.get('last_name') as string | null,
+        bio: formData.get('bio') as string | null
+    };
+    
+    for (const [key, value] of Object.entries(formFields)) {
+        if (value !== null && value !== undefined) {
+            updateValues.push(value);
+            updateFields.push(`${key} = $${updateValues.length}`);
+        }
     }
-    if (last_name !== null) {
-      updateFields.push('last_name = ?');
-      updateValues.push(last_name);
-    }
-    if (bio !== null) {
-      updateFields.push('bio = ?');
-      updateValues.push(bio);
-    }
-    if (profile_picture_url !== null) {
-      updateFields.push('profile_picture_url = ?');
-      updateValues.push(profile_picture_url);
+    
+    if (profile_picture_url) {
+        updateValues.push(profile_picture_url);
+        updateFields.push(`profile_picture_url = $${updateValues.length}`);
     }
 
     if (updateFields.length === 0) {
       return NextResponse.json({ message: 'No data provided for update.' }, { status: 400 });
     }
 
-    const query = `UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`;
-    await pool.execute(query, [...updateValues, userId]);
+    updateValues.push(userId);
+    const query = `UPDATE users SET ${updateFields.join(', ')} WHERE id = $${updateValues.length}`;
+    
+    await pool.query(query, updateValues);
 
     return NextResponse.json(
       { message: 'Profile updated successfully', profile_picture_url },

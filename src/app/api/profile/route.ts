@@ -1,11 +1,16 @@
 // api/profile/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import pool from '@/lib/db'; // Siguraduhin na 'pool' ang gamit mo, hindi 'db'
+import pool from '@/lib/db'; 
 import { RowDataPacket } from 'mysql2';
-import { uploadFileToS3 } from '@/lib/s3-upload'; // <-- I-IMPORT ANG S3 HELPER
+// 🔄 Import ang 'path' at 'fs/promises' para sa lokal na file operations (Railway Volume)
+import path from 'path';
+import { writeFile, access } from 'fs/promises';
+import { constants } from 'fs'; 
 
-// HINDI NA KAILANGAN ANG 'path', 'fs', o 'existsSync'
+// 📌 TUKUYIN ANG BASE UPLOAD DIRECTORY
+// Ito ang absolute path sa loob ng container, na naka-mount sa iyong Railway Volume.
+const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads');
 
 // Extend mysql2's RowDataPacket for proper type support
 interface UserProfile extends RowDataPacket {
@@ -17,9 +22,10 @@ interface UserProfile extends RowDataPacket {
   profile_picture_url: string | null;
 }
 
-
-
-// GET /api/profile?userId=123
+/**
+ * 🔍 GET /api/profile?userId=123
+ * Kinukuha ang profile information ng isang user.
+ */
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const userId = url.searchParams.get('userId');
@@ -46,7 +52,10 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// PUT /api/profile?userId=123 (with form-data)
+/**
+ * 🛠️ PUT /api/profile?userId=123
+ * Ina-update ang profile information, kasama na ang pag-upload ng profile picture sa Railway Volume.
+ */
 export async function PUT(req: NextRequest) {
   const url = new URL(req.url);
   const userId = url.searchParams.get('userId');
@@ -61,19 +70,40 @@ export async function PUT(req: NextRequest) {
     const updateValues: (string | null)[] = [];
     const updateFields: string[] = [];
 
-    // --- BAGO: Handle profile picture upload with S3 ---
+    // --- Railwat Volume Upload Logic ---
     const profilePictureFile = formData.get('profilePicture') as File | null;
 
     if (profilePictureFile && profilePictureFile.size > 0) {
-      // 1. I-upload ang bagong file sa S3
-      console.log('Uploading profile picture to S3...');
-      profile_picture_url = await uploadFileToS3(profilePictureFile, 'profile_pictures');
-      console.log('Upload complete. URL:', profile_picture_url);
+      console.log('Uploading profile picture to Railway Volume...');
       
-      // 2. (Optional) Pwede mo ring i-delete 'yung lumang file sa S3,
-      //    pero mas kumplikado 'yon. Sa ngayon, hayaan muna natin.
+      // I-convert ang file sa Buffer
+      const bytes = await profilePictureFile.arrayBuffer();
+      const buffer = Buffer.from(bytes);
+
+      // Gumawa ng unique filename
+      const fileExtension = path.extname(profilePictureFile.name);
+      // Gumamit ng userId at timestamp para sa uniqueness
+      const uniqueFileName = `${Date.now()}-${userId}${fileExtension}`;
+      const filePath = path.join(UPLOAD_DIR, uniqueFileName);
+
+      // Tiyakin na mayroon ang UPLOAD_DIR (bagamat dapat ay mayroon na dahil sa volume mount)
+      try {
+        await access(UPLOAD_DIR, constants.W_OK);
+      } catch {
+        // Pwede mong idagdag ang logic para gumawa ng directory kung wala, 
+        // pero sa Railway Volume setup, dapat ay laging available ito.
+        console.warn('Upload directory not found or writable. Check Volume setup.');
+      }
+      
+      // 1. Isulat ang file sa Volume
+      await writeFile(filePath, buffer);
+
+      // 2. Ang URL ay ang public path para ma-access ang image.
+      profile_picture_url = `/uploads/${uniqueFileName}`;
+      
+      console.log('Upload complete. Local URL:', profile_picture_url);
     }
-    // --- TAPOS NA ANG FILE UPLOAD LOGIC ---
+    // --- End of Upload Logic ---
 
     // Collect text fields
     const formFields = {

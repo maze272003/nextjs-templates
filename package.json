@@ -3,12 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-  "dev": "ts-node-dev --respawn --transpile-only --ignore-watch .next server.ts",
-  "start": "NODE_ENV=production node dist/server.js",
-  "lint": "next lint",
-  "build": "next build && tsc --project tsconfig.server.json"
-},
+    "dev": "ts-node-dev --respawn --transpile-only --ignore-watch .next server.ts",
+    "start": "NODE_ENV=production node dist/server.js",
+    "lint": "next lint",
+    "build": "next build && tsc --project tsconfig.server.json"
+  },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.917.0",
     "bcrypt": "^6.0.0",
     "cookie": "^1.0.2",
     "formidable": "^3.5.4",

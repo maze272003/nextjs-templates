@@ -1,17 +1,11 @@
+// api/profile/route.ts
+
 import { NextRequest, NextResponse } from 'next/server';
-import pool from '@/lib/db';
-import path from 'path';
-import fs from 'fs/promises';
-import { existsSync } from 'fs';
+import pool from '@/lib/db'; // Siguraduhin na 'pool' ang gamit mo, hindi 'db'
 import { RowDataPacket } from 'mysql2';
+import { uploadFileToS3 } from '@/lib/s3-upload'; // <-- I-IMPORT ANG S3 HELPER
 
-const UPLOAD_DIR = path.join(process.cwd(), 'public/uploads/profile_pictures');
-
-async function ensureUploadDir() {
-  if (!existsSync(UPLOAD_DIR)) {
-    await fs.mkdir(UPLOAD_DIR, { recursive: true });
-  }
-}
+// HINDI NA KAILANGAN ANG 'path', 'fs', o 'existsSync'
 
 // Extend mysql2's RowDataPacket for proper type support
 interface UserProfile extends RowDataPacket {
@@ -56,8 +50,6 @@ export async function GET(req: NextRequest) {
 
 // PUT /api/profile?userId=123 (with form-data)
 export async function PUT(req: NextRequest) {
-  await ensureUploadDir();
-
   const url = new URL(req.url);
   const userId = url.searchParams.get('userId');
 
@@ -71,38 +63,19 @@ export async function PUT(req: NextRequest) {
     const updateValues: (string | null)[] = [];
     const updateFields: string[] = [];
 
-    // Handle profile picture upload
+    // --- BAGO: Handle profile picture upload with S3 ---
     const profilePictureFile = formData.get('profilePicture') as File | null;
+
     if (profilePictureFile && profilePictureFile.size > 0) {
-      const [oldProfileResult] = await pool.query<ProfilePictureResult[]>(
-        'SELECT profile_picture_url FROM users WHERE id = ?',
-        [userId]
-      );
-
-      const oldProfileUrl = oldProfileResult[0]?.profile_picture_url;
-
-      const newFileName = `${userId}_${Date.now()}${path.extname(profilePictureFile.name)}`;
-      const filePath = path.join(UPLOAD_DIR, newFileName);
-      const buffer = Buffer.from(await profilePictureFile.arrayBuffer());
-      await fs.writeFile(filePath, buffer);
-      profile_picture_url = `/uploads/profile_pictures/${newFileName}`;
-
-      if (oldProfileUrl && oldProfileUrl.startsWith('/uploads')) {
-        const oldPicturePath = path.join(process.cwd(), 'public', oldProfileUrl);
-        try {
-          await fs.unlink(oldPicturePath);
-        } catch (unlinkError: unknown) {
-          if (
-            unlinkError &&
-            typeof unlinkError === 'object' &&
-            'code' in unlinkError &&
-            (unlinkError as { code: string }).code !== 'ENOENT'
-          ) {
-            console.warn('Could not delete old profile picture:', unlinkError);
-          }
-        }
-      }
+      // 1. I-upload ang bagong file sa S3
+      console.log('Uploading profile picture to S3...');
+      profile_picture_url = await uploadFileToS3(profilePictureFile, 'profile_pictures');
+      console.log('Upload complete. URL:', profile_picture_url);
+      
+      // 2. (Optional) Pwede mo ring i-delete 'yung lumang file sa S3,
+      //    pero mas kumplikado 'yon. Sa ngayon, hayaan muna natin.
     }
+    // --- TAPOS NA ANG FILE UPLOAD LOGIC ---
 
     // Collect text fields
     const formFields = {

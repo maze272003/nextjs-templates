@@ -17,9 +17,7 @@ interface UserProfile extends RowDataPacket {
   profile_picture_url: string | null;
 }
 
-interface ProfilePictureResult extends RowDataPacket {
-  profile_picture_url: string;
-}
+
 
 // GET /api/profile?userId=123
 export async function GET(req: NextRequest) {

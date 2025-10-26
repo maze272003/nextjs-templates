@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
       `INSERT INTO users 
        (first_name, last_name, email, password, otp_secret, otp_created_at, is_verified) 
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [firstName, lastName, email, hashedPassword, otp, otpCreatedAt, false]
+      [firstName, lastName, email, hashedPassword, otp, otpCreatedAt, true]
     );
 
     if (result.affectedRows === 0) {

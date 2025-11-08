@@ -1,10 +1,9 @@
-// src/app/login/page.tsx (Example, adjust your actual login frontend logic)
+// src/app/login/page.tsx (Walang binago dito)
 'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');

@@ -6,6 +6,26 @@ import Link from 'next/link';
 import Image from 'next/image';
 import Layout, { useUser } from '@/components/layout/Layout';
 
+// 💡 HELPER FUNCTION: Kukunin ang absolute URL para sa image
+const getAbsoluteImageUrl = (relativePath: string | null): string | null => {
+  if (!relativePath) return null;
+  
+  // Tiyakin na ang COOLIFY_FQDN ay exposed bilang NEXT_PUBLIC_COOLIFY_FQDN 
+  const domain = process.env.NEXT_PUBLIC_COOLIFY_FQDN || '';
+  
+  // Gumawa ng Absolute URL (e.g., https://nexnex.johnmichaeljonatas.site/uploads/...)
+  if (domain && !relativePath.startsWith('http')) {
+    const cleanDomain = domain.endsWith('/') ? domain.slice(0, -1) : domain;
+    const cleanPath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath;
+    
+    return `https://${cleanDomain}/${cleanPath}`;
+  }
+  
+  // Ibalik ang original path (maaaring ito ay full URL na)
+  return relativePath; 
+};
+
+
 function ProfileContent() {
   const router = useRouter();
   const { profile, loading, isAuthenticated } = useUser();
@@ -30,7 +50,10 @@ function ProfileContent() {
       setFirstName(profile.first_name || '');
       setLastName(profile.last_name || '');
       setBio(profile.bio || '');
-      setProfilePictureUrl(profile.profile_picture_url || null);
+      
+      // 💡 FIX 1: I-set ang Absolute URL mula sa database value
+      const absoluteUrl = getAbsoluteImageUrl(profile.profile_picture_url);
+      setProfilePictureUrl(absoluteUrl);
     }
   }, [profile]);
 
@@ -65,7 +88,9 @@ function ProfileContent() {
         setMessage(data.message || 'Profile updated successfully!');
         setIsError(false);
         if (data.profile_picture_url) {
-          setProfilePictureUrl(data.profile_picture_url);
+          // 💡 FIX 2: I-save ang Absolute URL sa state matapos ang successful update
+          const absoluteUrlAfterUpdate = getAbsoluteImageUrl(data.profile_picture_url);
+          setProfilePictureUrl(absoluteUrlAfterUpdate);
           setProfilePicture(null);
         }
       } else {
@@ -115,7 +140,7 @@ function ProfileContent() {
             <div className="w-32 h-32 bg-slate-200 rounded-full animate-pulse"></div>
           ) : profilePictureUrl ? (
             <Image
-              src={profilePictureUrl}
+              src={profilePictureUrl} // Gagamitin na ang Absolute URL
               alt="Profile Picture"
               width={128}
               height={128}
@@ -236,7 +261,7 @@ function ProfileContent() {
             &times;
           </button>
           <Image
-            src={profilePictureUrl}
+            src={profilePictureUrl} // Gagamitin na ang Absolute URL
             alt="Profile Picture Full View"
             width={800}
             height={800}

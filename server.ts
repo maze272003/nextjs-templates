@@ -52,6 +52,7 @@ app.prepare().then(() => {
     const io = new Server(httpServer, {
         cors: {
             origin: '*', // You may want to restrict this in production
+            methods: ["GET", "POST"]
         },
     });
 

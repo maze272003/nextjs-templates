@@ -5,11 +5,16 @@ import fs from 'fs/promises';
 import { existsSync } from 'fs';
 import { RowDataPacket } from 'mysql2';
 
-const UPLOAD_DIR = path.join(process.cwd(), 'public/uploads/profile_pictures');
+// 1. I-configure ang Base Directory: "/app" ang root ng iyong application sa Coolify container.
+// Ang 'public' folder ay nasa loob ng /app.
+const BASE_APP_DIR = process.cwd(); // Ito ay dapat /app sa Coolify
+const PUBLIC_UPLOADS_FOLDER = 'public/uploads/profile_pictures'; 
+// Ang SERVER_SAVE_DIR ay ang full path sa loob ng Volume Mount (e.g., /app/public/uploads/profile_pictures)
+const SERVER_SAVE_DIR = path.join(BASE_APP_DIR, PUBLIC_UPLOADS_FOLDER); 
 
 async function ensureUploadDir() {
-  if (!existsSync(UPLOAD_DIR)) {
-    await fs.mkdir(UPLOAD_DIR, { recursive: true });
+  if (!existsSync(SERVER_SAVE_DIR)) {
+    await fs.mkdir(SERVER_SAVE_DIR, { recursive: true });
   }
 }
 
@@ -47,6 +52,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ message: 'User profile not found' }, { status: 404 });
     }
 
+    // Walang kailangang baguhin dito, basta ang URL sa DB ay /uploads/profile_pictures/...
     return NextResponse.json(user, { status: 200 });
   } catch (error) {
     console.error('Error fetching profile:', error);
@@ -82,13 +88,24 @@ export async function PUT(req: NextRequest) {
       const oldProfileUrl = oldProfileResult[0]?.profile_picture_url;
 
       const newFileName = `${userId}_${Date.now()}${path.extname(profilePictureFile.name)}`;
-      const filePath = path.join(UPLOAD_DIR, newFileName);
+      
+      // 2. SERVER SAVE PATH: Gamitin ang SERVER_SAVE_DIR para sa tamang server path.
+      const filePath = path.join(SERVER_SAVE_DIR, newFileName);
+      
       const buffer = Buffer.from(await profilePictureFile.arrayBuffer());
       await fs.writeFile(filePath, buffer);
-      profile_picture_url = `/uploads/profile_pictures/${newFileName}`;
+      
+      // 3. DATABASE/PUBLIC URL: I-save ang public accessible path sa database.
+      // Ito ay dapat magsimula sa '/uploads' dahil ang public folder ang base URL.
+      profile_picture_url = `/uploads/profile_pictures/${newFileName}`; 
 
       if (oldProfileUrl && oldProfileUrl.startsWith('/uploads')) {
-        const oldPicturePath = path.join(process.cwd(), 'public', oldProfileUrl);
+        // 4. OLD FILE DELETION: I-construct ang path na gagamitin ng FS, hindi ng browser.
+        // Ang `oldProfileUrl` ay tulad ng '/uploads/profile_pictures/old.jpg'.
+        // Kailangan natin i-combine ito sa BASE_APP_DIR.
+        const relativeOldPath = oldProfileUrl.substring(1); // 'uploads/profile_pictures/old.jpg'
+        const oldPicturePath = path.join(BASE_APP_DIR, relativeOldPath);
+
         try {
           await fs.unlink(oldPicturePath);
         } catch (unlinkError: unknown) {
@@ -104,7 +121,7 @@ export async function PUT(req: NextRequest) {
       }
     }
 
-    // Collect text fields
+    // ... (rest of the update logic remains the same)
     const formFields = {
       first_name: formData.get('first_name') as string | null,
       last_name: formData.get('last_name') as string | null,

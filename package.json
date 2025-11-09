@@ -6,11 +6,8 @@
     "dev": "ts-node-dev --respawn --transpile-only --ignore-watch .next server.ts",
     "start": "NODE_ENV=production node dist/server.js",
     "lint": "next lint",
-    
-    // 💡 NEW SCRIPT: This compiles server.ts into dist/server.js
     "prebuild": "rm -rf dist && tsc --project tsconfig.server.json", 
-    
-    "build": "next build" 
+    "build": "next build"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

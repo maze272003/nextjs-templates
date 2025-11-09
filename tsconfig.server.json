@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json", 
+  "compilerOptions": {
+    "module": "commonjs",     
+    "outDir": "dist",         
+    "target": "es2020",       
+    "noEmit": false,          
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true
+  },
+  "include": ["server.ts"], 
+  "exclude": ["node_modules", ".next", "src"] // Exclude the main Next.js source code
+}

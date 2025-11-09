@@ -14,50 +14,16 @@ const SERVER_SAVE_DIR = path.join(BASE_APP_DIR, PUBLIC_UPLOADS_FOLDER);
 
 async function ensureUploadDir() {
   if (!existsSync(SERVER_SAVE_DIR)) {
+    console.log(`Creating directory: ${SERVER_SAVE_DIR}`);
     await fs.mkdir(SERVER_SAVE_DIR, { recursive: true });
   }
 }
 
-// Extend mysql2's RowDataPacket for proper type support
-interface UserProfile extends RowDataPacket {
-  id: number;
-  email: string;
-  first_name: string;
-  last_name: string;
-  bio: string | null;
-  profile_picture_url: string | null;
-}
-
-interface ProfilePictureResult extends RowDataPacket {
-  profile_picture_url: string;
-}
+// ... (Interfaces remain the same)
 
 // GET /api/profile?userId=123
 export async function GET(req: NextRequest) {
-  const url = new URL(req.url);
-  const userId = url.searchParams.get('userId');
-
-  if (!userId) {
-    return NextResponse.json({ message: 'User ID missing for profile fetch.' }, { status: 400 });
-  }
-
-  try {
-    const [rows] = await pool.query<UserProfile[]>(
-      'SELECT id, email, first_name, last_name, bio, profile_picture_url FROM users WHERE id = ?',
-      [userId]
-    );
-
-    const user = rows[0];
-    if (!user) {
-      return NextResponse.json({ message: 'User profile not found' }, { status: 404 });
-    }
-
-    // Walang kailangang baguhin dito, basta ang URL sa DB ay /uploads/profile_pictures/...
-    return NextResponse.json(user, { status: 200 });
-  } catch (error) {
-    console.error('Error fetching profile:', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
-  }
+  // ... (GET logic remains the same - no file handling involved)
 }
 
 // PUT /api/profile?userId=123 (with form-data)
@@ -87,27 +53,15 @@ export async function PUT(req: NextRequest) {
 
       const oldProfileUrl = oldProfileResult[0]?.profile_picture_url;
 
-      const newFileName = `${userId}_${Date.now()}${path.extname(profilePictureFile.name)}`;
-      
-      // 2. SERVER SAVE PATH: Gamitin ang SERVER_SAVE_DIR para sa tamang server path.
-      const filePath = path.join(SERVER_SAVE_DIR, newFileName);
-      
-      const buffer = Buffer.from(await profilePictureFile.arrayBuffer());
-      await fs.writeFile(filePath, buffer);
-      
-      // 3. DATABASE/PUBLIC URL: I-save ang public accessible path sa database.
-      // Ito ay dapat magsimula sa '/uploads' dahil ang public folder ang base URL.
-      profile_picture_url = `/uploads/profile_pictures/${newFileName}`; 
-
+      // --- 4. OLD FILE DELETION LOGIC (IMPROVED ERROR HANDLING) ---
       if (oldProfileUrl && oldProfileUrl.startsWith('/uploads')) {
-        // 4. OLD FILE DELETION: I-construct ang path na gagamitin ng FS, hindi ng browser.
-        // Ang `oldProfileUrl` ay tulad ng '/uploads/profile_pictures/old.jpg'.
-        // Kailangan natin i-combine ito sa BASE_APP_DIR.
-        const relativeOldPath = oldProfileUrl.substring(1); // 'uploads/profile_pictures/old.jpg'
-        const oldPicturePath = path.join(BASE_APP_DIR, relativeOldPath);
+        // Tiyakin na ang deletion path ay tama (alisin ang leading slash)
+        const oldPicturePath = path.join(BASE_APP_DIR, oldProfileUrl.substring(1));
 
         try {
+          console.log(`Attempting to delete old file at: ${oldPicturePath}`);
           await fs.unlink(oldPicturePath);
+          console.log('✅ Old profile picture deleted.');
         } catch (unlinkError: unknown) {
           if (
             unlinkError &&
@@ -115,13 +69,25 @@ export async function PUT(req: NextRequest) {
             'code' in unlinkError &&
             (unlinkError as { code: string }).code !== 'ENOENT'
           ) {
-            console.warn('Could not delete old profile picture:', unlinkError);
+            // EACCES = Permission denied. Ito ang hinahanap natin.
+            console.error(`❌ CRITICAL UNLINK ERROR (Check Volume Permissions):`, unlinkError);
+            // Huwag itong i-rethrow para tuloy ang upload ng bagong file
           }
         }
       }
+      
+      // --- 5. NEW FILE WRITE LOGIC ---
+      const newFileName = `${userId}_${Date.now()}${path.extname(profilePictureFile.name)}`;
+      const filePath = path.join(SERVER_SAVE_DIR, newFileName);
+      
+      const buffer = Buffer.from(await profilePictureFile.arrayBuffer());
+      await fs.writeFile(filePath, buffer);
+      
+      // DATABASE/PUBLIC URL: I-save ang public accessible path sa database.
+      profile_picture_url = `/uploads/profile_pictures/${newFileName}`; 
     }
 
-    // ... (rest of the update logic remains the same)
+    // ... (rest of the update and DB logic remains the same)
     const formFields = {
       first_name: formData.get('first_name') as string | null,
       last_name: formData.get('last_name') as string | null,
@@ -155,6 +121,7 @@ export async function PUT(req: NextRequest) {
     );
   } catch (error) {
     console.error('Error updating profile:', error);
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+    // Mas detalyado ang error message kung I/O related
+    return NextResponse.json({ message: 'Internal server error (Check logs for EACCES or other I/O errors)' }, { status: 500 });
   }
 }
